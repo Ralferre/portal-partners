@@ -1,17 +1,33 @@
-FROM node:20-alpine AS builder
+# ----------- DEV STAGE -----------
+FROM node:21-alpine AS dev
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm install
+COPY package.json ./
+# RUN npm ci
+RUN yarn install
 
 COPY . .
-RUN npm run build
 
-FROM nginx:stable-alpine
+EXPOSE 5173
+# CMD [ "npm", "run", "dev", "--", "--host" ]
+CMD [ "yarn", "run", "dev" ]
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+# ----------- PROD STAGE -----------
+# FROM node:20-alpine AS builder
 
-EXPOSE 80
+# WORKDIR /app
 
-CMD [ "nginx", "-g", "daemon off;" ]
+# COPY package.json package-lock.json ./
+# RUN npm install
+
+# COPY . .
+# RUN npm run build
+
+# FROM nginx:stable-alpine
+
+# COPY --from=builder /app/dist /usr/share/nginx/html
+
+# EXPOSE 80
+
+# CMD [ "nginx", "-g", "daemon off;" ]
