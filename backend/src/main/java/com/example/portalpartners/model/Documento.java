@@ -14,6 +14,10 @@ public class Documento {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TipoDocumento tipoDocumento;
+
     @Column(nullable = false)
     private String nomeArquivo;
 
@@ -26,6 +30,16 @@ public class Documento {
     @Column(nullable = false)
     private LocalDateTime dataPostagem;
 
+    @PrePersist
+    private void prePersist() {
+        if (this.dataPostagem == null) {
+            this.dataPostagem = LocalDateTime.now();
+        }
+    }
+
+    @Enumerated(EnumType.STRING)
+    private StatusDocumento statusDocumento = StatusDocumento.PENDENTE;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contratada_id")
     private Contratada contratada;
@@ -34,3 +48,5 @@ public class Documento {
     @JoinColumn(name = "funcionario_id")
     private Funcionario funcionario;
 }
+
+

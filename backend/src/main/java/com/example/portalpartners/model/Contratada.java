@@ -3,6 +3,10 @@ package com.example.portalpartners.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
 @Entity
 @Data
 @NoArgsConstructor
@@ -118,6 +122,12 @@ public class Contratada {
     private String numeroPedido;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "contratante_id")
+    @JoinColumn(name = "contratante_uuid")
     private Contratante contratante;
+
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.ALL)
+    private List<Contrato> contratos = new ArrayList<>();
+
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.ALL)
+    private List<Funcionario> funcionarios = new ArrayList<>();
 }

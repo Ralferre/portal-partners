@@ -1,10 +1,8 @@
 package com.example.portalpartners.controller;
 
-import com.example.portalpartners.dto.ContratadaResponse;
 import com.example.portalpartners.dto.CreateFuncionarioRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
 import com.example.portalpartners.model.Contratada;
-import com.example.portalpartners.model.Contratante;
 import com.example.portalpartners.model.Funcionario;
 import com.example.portalpartners.repository.ContratadaRepository;
 import com.example.portalpartners.repository.FuncionarioRepository;
@@ -28,14 +26,14 @@ public class FuncionarioController {
                 .map(f -> new FuncionarioResponse(
                         f.getId(),
                         f.getCpf(),
-                        f.getNomeCompleto()
-//                        f.getContratada().getId()
+                        f.getNomeCompleto(),
+                        f.getContratada().getId()
                 ))
                 .toList();
     }
 
     @PostMapping
-    public ResponseEntity<Funcionario> createFuncionario(@RequestBody CreateFuncionarioRequest createFuncionarioRequest) {
+    public ResponseEntity<FuncionarioResponse> createFuncionario(@RequestBody CreateFuncionarioRequest createFuncionarioRequest) {
         if (funcionarioRepository.existsByCpf(createFuncionarioRequest.cpf())) {
             return ResponseEntity.badRequest().build();
         }
@@ -49,6 +47,16 @@ public class FuncionarioController {
                 .nomeCompleto(createFuncionarioRequest.nomeCompleto())
                 .contratada(contratada)
                 .build();
-        return ResponseEntity.ok(funcionarioRepository.save(funcionario));
+        funcionario = funcionarioRepository.save(funcionario);
+
+        FuncionarioResponse response = new FuncionarioResponse(
+                funcionario.getId(),
+                funcionario.getCpf(),
+                funcionario.getNomeCompleto(),
+                funcionario.getContratada().getId()
+        );
+
+        return ResponseEntity.ok(response);
+
     }
 }

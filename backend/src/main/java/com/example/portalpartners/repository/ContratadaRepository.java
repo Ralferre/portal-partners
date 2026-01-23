@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface ContratadaRepository extends JpaRepository<Contratada, Long> {
     boolean existsByCnpj(String cnpj);
 
+    Optional<Contratada> findById(Long id);
+
 }

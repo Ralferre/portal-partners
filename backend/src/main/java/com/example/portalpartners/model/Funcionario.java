@@ -3,6 +3,9 @@ package com.example.portalpartners.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Data
 @NoArgsConstructor
@@ -22,4 +25,8 @@ public class Funcionario {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contratada_id")
     private Contratada contratada;
+
+    @OneToMany(mappedBy = "funcionario", cascade = CascadeType.ALL)
+    private List<Documento> documentos = new ArrayList<>();
+
 }

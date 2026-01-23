@@ -5,8 +5,8 @@ public record ContratadaResponse(
         String cnpj,
         String razaoSocial,
         String nomeFantasia,
-        String email
-//        Long contratanteId,
-//        String nomeContratante
+        String email,
+        Long contratanteId,
+        String nomeContratante
 ) {
 }

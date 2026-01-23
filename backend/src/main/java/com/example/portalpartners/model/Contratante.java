@@ -3,6 +3,10 @@ package com.example.portalpartners.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
 @Entity
 @Data
 @NoArgsConstructor
@@ -75,4 +79,7 @@ public class Contratante {
 
     @Column(nullable = false)
     private String endereco;
+
+    @OneToMany(mappedBy = "contratante", cascade = CascadeType.ALL)
+    private List<Contrato> contratoList = new ArrayList<>();
 }

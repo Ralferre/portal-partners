@@ -1,12 +1,17 @@
 package com.example.portalpartners.service;
 
+import com.example.portalpartners.model.TipoDocumento;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.UUID;
+
 @Service
+@RequiredArgsConstructor
 public class MinioService {
 
     private final MinioClient client;
@@ -14,25 +19,37 @@ public class MinioService {
     @Value("${minio.bucket-name}")
     private String bucket;
 
-    public MinioService(MinioClient client) {
-        this.client = client;
-    }
-
-    public String uploadFile(MultipartFile file) {
+    public String uploadFile(MultipartFile file, Long contratadaId, Long funcionarioId, TipoDocumento tipo) {
         try {
+            StringBuilder prefix = new StringBuilder("contratadas/" + contratadaId + "/documentos/" + tipo + "/");
+            if (funcionarioId != null) {
+                prefix.insert(prefix.indexOf("/documentos"), "/funcionarios/" + funcionarioId);
+            }
+
+            // Nome único do arquivo
+            String extension = file.getOriginalFilename() != null
+                    ? file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf(".") + 1)
+                    : "bin";
+            String objectName = prefix
+                    .append(UUID.randomUUID().toString())
+                    .append(".")
+                    .append(extension)
+                    .toString();
+
+            // Upload
             client.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucket)
-                            .object(file.getOriginalFilename())
+                            .object(objectName)
                             .stream(file.getInputStream(), file.getSize(), -1)
                             .contentType(file.getContentType())
                             .build()
             );
 
-            return "Uploaded: " + file.getOriginalFilename();
+            return objectName;  // Retorna o path completo para salvar no banco
 
         } catch (Exception e) {
-            throw new RuntimeException("Upload failed", e);
+            throw new RuntimeException("Falha ao fazer upload para MinIO: " + e.getMessage(), e);
         }
     }
 }

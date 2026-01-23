@@ -1,6 +1,6 @@
 package com.example.portalpartners.dto;
 
-public record CreateContratadadRequest(
+public record CreateContratadaRequest(
         String cnpj,
         String razaoSocial,
         String nomeFantasia,

@@ -4,5 +4,6 @@ public enum StatusDocumento {
     POSTADO,
     ANALISADO,
     APROVADO,
+    PENDENTE,
     REPROVADO
 }
