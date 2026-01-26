@@ -22,6 +22,30 @@ public class Funcionario {
     @Column(nullable = false)
     private String nomeCompleto;
 
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getCpf() {
+        return cpf;
+    }
+
+    public void setCpf(String cpf) {
+        this.cpf = cpf;
+    }
+
+    public String getNomeCompleto() {
+        return nomeCompleto;
+    }
+
+    public void setNomeCompleto(String nomeCompleto) {
+        this.nomeCompleto = nomeCompleto;
+    }
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contratada_id")
     private Contratada contratada;
@@ -29,4 +53,19 @@ public class Funcionario {
     @OneToMany(mappedBy = "funcionario", cascade = CascadeType.ALL)
     private List<Documento> documentos = new ArrayList<>();
 
+    public Contratada getContratada() {
+        return contratada;
+    }
+
+    public void setContratada(Contratada contratada) {
+        this.contratada = contratada;
+    }
+
+    public List<Documento> getDocumentos() {
+        return documentos;
+    }
+
+    public void setDocumentos(List<Documento> documentos) {
+        this.documentos = documentos;
+    }
 }

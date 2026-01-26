@@ -4,6 +4,7 @@ public record FuncionarioResponse(
         Long id,
         String cpf,
         String nomeCompleto,
-        Long contratadaId
+        Long contratadaId,
+        String contradadaNome
 ) {
 }

@@ -5,7 +5,6 @@ import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Data
@@ -22,6 +21,9 @@ public class Contratante {
 
     @Column(nullable = false)
     private String nome;
+
+    @Column(nullable = false)
+    private String senha;
 
     public Long getId() {
         return id;
@@ -55,31 +57,7 @@ public class Contratante {
         this.senha = senha;
     }
 
-    public String getTelefone() {
-        return telefone;
-    }
+    @OneToMany(mappedBy = "contratante", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Contrato> contratos = new ArrayList<>();
 
-    public void setTelefone(String telefone) {
-        this.telefone = telefone;
-    }
-
-    public String getEndereco() {
-        return endereco;
-    }
-
-    public void setEndereco(String endereco) {
-        this.endereco = endereco;
-    }
-
-    @Column(nullable = false)
-    private String senha;
-
-    @Column(nullable = false)
-    private String telefone;
-
-    @Column(nullable = false)
-    private String endereco;
-
-    @OneToMany(mappedBy = "contratante", cascade = CascadeType.ALL)
-    private List<Contrato> contratoList = new ArrayList<>();
 }

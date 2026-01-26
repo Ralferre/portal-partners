@@ -23,17 +23,19 @@ public class ContratadaController {
     private final ContratanteRepository contratanteRepository;
 
     @GetMapping
-    public List<ContratadaResponse> contratadaList() {
+    public List<ContratadaResponse> contratadaList(Contratante contratante) {
         return contratadaRepository.findAll()
                 .stream()
                 .map(c -> new ContratadaResponse(
                         c.getId(),
                         c.getCnpj(),
-                        c.getRazaoSocial(),
-                        c.getNomeFantasia(),
                         c.getEmail(),
-                        c.getContratante().getId(),
-                        c.getContratante().getNome()
+                        c.getNome(),
+                        c.getSenha(),
+                        c.getNumeroContrato(),
+                        c.getNumeroPedido(),
+                        contratante.getId(),
+                        contratante.getNome()
                 ))
                 .toList();
     }
@@ -47,13 +49,16 @@ public class ContratadaController {
         Contratante contratante = contratanteRepository.findById(createContratadaRequest.contratanteId())
                 .orElseThrow(() -> new RuntimeException("Contratante não encontrada"));
 
+        if (createContratadaRequest.contratanteNome() != null &&
+                !contratante.getNome().equalsIgnoreCase(createContratadaRequest.nome())) {
+            throw new IllegalArgumentException("Nome da contratante não corresponde ao ID informado");
+        }
+
         Contratada contratada = Contratada.builder()
                 .cnpj(createContratadaRequest.cnpj())
-                .razaoSocial(createContratadaRequest.razaoSocial())
-                .nomeFantasia(createContratadaRequest.nomeFantasia())
-                .endereco(createContratadaRequest.endereco())
-                .telefone(createContratadaRequest.telefone())
+                .nome(createContratadaRequest.nome())
                 .email(createContratadaRequest.email())
+                .senha(createContratadaRequest.senha())
                 .numeroContrato(createContratadaRequest.numeroContrato())
                 .numeroPedido(createContratadaRequest.numeroPedido())
                 .contratante(contratante)

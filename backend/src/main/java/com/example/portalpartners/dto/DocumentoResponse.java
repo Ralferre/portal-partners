@@ -12,15 +12,9 @@ public class DocumentoResponse {
     private Long id;
     private TipoDocumento tipoDocumento;
     private String nomeArquivo;
-    private StatusDocumento status;
+    private StatusDocumento statusDocumento;
     private LocalDateTime dataPostagem;
-    private Long contratadaId;
-    private Long funcionarioId;
+    private String contratadaNome;
+    private String funcionarioNome;
 
-    @PrePersist
-    private void prePersist() {
-        if (this.dataPostagem == null) {
-            this.dataPostagem = LocalDateTime.now();
-        }
-    }
 }

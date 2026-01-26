@@ -19,9 +19,10 @@ public class ReportController {
     public Map<String, Object> dashboard() {
         Map<String, Object> report = new HashMap<>();
         report.put("totalPostados", documentoRepository.count());
-        report.put("totalAnalisados", documentoRepository.countByStatus(StatusDocumento.valueOf("ANALISADO")));
-        report.put("totalAprovados", documentoRepository.countByStatus(StatusDocumento.valueOf("APROVADO")));
-        report.put("totalReprovados", documentoRepository.countByStatus(StatusDocumento.valueOf("REPROVADO")));
+        report.put("totalAnalisados", documentoRepository.countByStatusDocumento(StatusDocumento.valueOf("ANALISADO")));
+        report.put("totalAprovados", documentoRepository.countByStatusDocumento(StatusDocumento.valueOf("APROVADO")));
+        report.put("totalReprovados", documentoRepository.countByStatusDocumento(StatusDocumento.valueOf("REPROVADO")));
+        report.put("totalPendentes", documentoRepository.countByStatusDocumento(StatusDocumento.valueOf("Pendente")));
         return report;
     }
 }

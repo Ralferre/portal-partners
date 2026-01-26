@@ -2,13 +2,11 @@ package com.example.portalpartners.dto;
 
 public record CreateContratadaRequest(
         String cnpj,
-        String razaoSocial,
-        String nomeFantasia,
-        String endereco,
-        String telefone,
+        String nome,
         String email,
+        String senha,
         String numeroContrato,
         String numeroPedido,
-        Long contratanteId
-) {
-}
+        Long contratanteId,
+        String contratanteNome
+) { }

@@ -5,7 +5,6 @@ import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Data
@@ -21,19 +20,19 @@ public class Contratada {
     private String cnpj;
 
     @Column(nullable = false)
-    private String razaoSocial;
-
-    @Column(nullable = false)
-    private String nomeFantasia;
-
-    @Column(nullable = false)
-    private String endereco;
-
-    @Column(nullable = false)
-    private String telefone;
+    private String nome;
 
     @Column(nullable = false)
     private String email;
+
+    @Column(nullable = false)
+    private String senha;
+
+    @Column(nullable = false)
+    private String numeroContrato;
+
+    @Column(nullable = false)
+    private String numeroPedido;
 
     public Long getId() {
         return id;
@@ -51,36 +50,20 @@ public class Contratada {
         this.cnpj = cnpj;
     }
 
-    public String getRazaoSocial() {
-        return razaoSocial;
+    public String getNome() {
+        return nome;
     }
 
-    public void setRazaoSocial(String razaoSocial) {
-        this.razaoSocial = razaoSocial;
+    public void setNome(String nome) {
+        this.nome = nome;
     }
 
-    public String getNomeFantasia() {
-        return nomeFantasia;
+    public String getSenha() {
+        return senha;
     }
 
-    public void setNomeFantasia(String nomeFantasia) {
-        this.nomeFantasia = nomeFantasia;
-    }
-
-    public String getEndereco() {
-        return endereco;
-    }
-
-    public void setEndereco(String endereco) {
-        this.endereco = endereco;
-    }
-
-    public String getTelefone() {
-        return telefone;
-    }
-
-    public void setTelefone(String telefone) {
-        this.telefone = telefone;
+    public void setSenha(String senha) {
+        this.senha = senha;
     }
 
     public String getEmail() {
@@ -107,27 +90,29 @@ public class Contratada {
         this.numeroPedido = numeroPedido;
     }
 
-    public Contratante getContratante() {
-        return contratante;
-    }
-
-    public void setContratante(Contratante contratante) {
-        this.contratante = contratante;
-    }
-
-    @Column(nullable = false)
-    private String numeroContrato;
-
-    @Column(nullable = false)
-    private String numeroPedido;
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "contratante_uuid")
+    @JoinColumn(name = "contratante_id", nullable = false)
     private Contratante contratante;
 
-    @OneToMany(mappedBy = "contratada", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Contrato> contratos = new ArrayList<>();
 
-    @OneToMany(mappedBy = "contratada", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Funcionario> funcionarios = new ArrayList<>();
+
+    public List<Contrato> getContratos() {
+        return contratos;
+    }
+
+    public void setContratos(List<Contrato> contratos) {
+        this.contratos = contratos;
+    }
+
+    public List<Funcionario> getFuncionarios() {
+        return funcionarios;
+    }
+
+    public void setFuncionarios(List<Funcionario> funcionarios) {
+        this.funcionarios = funcionarios;
+    }
 }

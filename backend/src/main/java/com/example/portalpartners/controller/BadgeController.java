@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class BadgeController {
     private final DocumentoRepository documentoRepository;
 
-    @GetMapping("/nao-analisados")
+    @GetMapping("/pendentes")
     public long countNaoAnalisados() {
-        return documentoRepository.countByStatus(StatusDocumento.valueOf("POSTADO"));
+        return documentoRepository.countByStatusDocumento(StatusDocumento.valueOf("PENDENTE"));
     }
 }

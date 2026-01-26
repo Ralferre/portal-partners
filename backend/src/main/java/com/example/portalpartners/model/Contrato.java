@@ -18,14 +18,18 @@ public class Contrato {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "contratante", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contratante_id", nullable = false)
     private Contratante contratante;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contratada_id", nullable = false)
     private Contratada contratada;
 
-    @Column
-    private String arquivoContratual;
+    @Column(nullable = false)
+    private String numeroPedido;
+
+    @Column(nullable = false)
+    private String numeroContrato;
+
 }

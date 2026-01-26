@@ -19,11 +19,14 @@ public class MinioService {
     @Value("${minio.bucket-name}")
     private String bucket;
 
-    public String uploadFile(MultipartFile file, Long contratadaId, Long funcionarioId, TipoDocumento tipo) {
+    public String uploadFile(MultipartFile file,
+                             String contratadaNome,
+                             String funcionarioNome,
+                             TipoDocumento tipo) {
         try {
-            StringBuilder prefix = new StringBuilder("contratadas/" + contratadaId + "/documentos/" + tipo + "/");
-            if (funcionarioId != null) {
-                prefix.insert(prefix.indexOf("/documentos"), "/funcionarios/" + funcionarioId);
+            StringBuilder prefix = new StringBuilder("contratadas/" + contratadaNome + "/documentos/" + tipo + "/");
+            if (funcionarioNome != null) {
+                prefix.insert(prefix.indexOf("/documentos"), "/funcionarios/" + funcionarioNome);
             }
 
             // Nome único do arquivo
@@ -31,7 +34,7 @@ public class MinioService {
                     ? file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf(".") + 1)
                     : "bin";
             String objectName = prefix
-                    .append(UUID.randomUUID().toString())
+                    .append(UUID.randomUUID())
                     .append(".")
                     .append(extension)
                     .toString();

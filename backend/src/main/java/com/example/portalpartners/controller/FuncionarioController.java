@@ -27,7 +27,8 @@ public class FuncionarioController {
                         f.getId(),
                         f.getCpf(),
                         f.getNomeCompleto(),
-                        f.getContratada().getId()
+                        f.getContratada().getId(),
+                        f.getContratada().getNome()
                 ))
                 .toList();
     }
@@ -53,7 +54,8 @@ public class FuncionarioController {
                 funcionario.getId(),
                 funcionario.getCpf(),
                 funcionario.getNomeCompleto(),
-                funcionario.getContratada().getId()
+                funcionario.getContratada().getId(),
+                funcionario.getContratada().getNome()
         );
 
         return ResponseEntity.ok(response);

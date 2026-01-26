@@ -3,6 +3,6 @@ package com.example.portalpartners.dto;
 public record CreateFuncionarioRequest(
         String cpf,
         String nomeCompleto,
-        Long contratadaId
-) {
-}
+        Long contratadaId,
+        String contratadaNome
+) { }

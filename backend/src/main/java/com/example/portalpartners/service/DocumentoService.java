@@ -1,18 +1,18 @@
 package com.example.portalpartners.service;
 
-import com.example.portalpartners.dto.CreateDocumento;
-import com.example.portalpartners.model.Documento;
-import com.example.portalpartners.model.TipoDocumento;
+import com.example.portalpartners.dto.CreateDocumentoRequest;
+import com.example.portalpartners.model.*;
 import com.example.portalpartners.repository.ContratadaRepository;
 import com.example.portalpartners.repository.DocumentoRepository;
 import com.example.portalpartners.repository.FuncionarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,49 +23,55 @@ public class DocumentoService {
     private final MinioService minioService;
 
     @Transactional
-    public Documento uploadDocumento(CreateDocumento dto) {
-        System.out.println("Teste endpoint: " + dto.getContratadaId());
-        if (dto.getContratadaId() == null) {
-            throw new IllegalArgumentException("ID da contratada é obrigatório");
-        }
+    public Documento uploadDocumento(CreateDocumentoRequest dto) {
+        Funcionario funcionario = funcionarioRepository
+                .findByNomeCompletoIgnoreCase(dto.funcionarioNome())
+                .orElseThrow(() -> new IllegalArgumentException("Funcionário não encontrado"));
+
+        Contratada contratada = contratadaRepository
+                .findByNomeIgnoreCase(dto.contratadaNome())
+                .orElseThrow(() -> new IllegalArgumentException("Contratada não encontrada"));
 
         TipoDocumento tipoEnum;
         try {
-            tipoEnum = TipoDocumento.valueOf(dto.getTipoDocumento().toUpperCase());
+            tipoEnum = TipoDocumento.valueOf(dto.tipoDocumento().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Tipo de documento inválido: " + dto.getTipoDocumento());
+            throw new IllegalArgumentException("Tipo de documento inválido: " + dto.tipoDocumento());
         }
 
         String path = minioService.uploadFile(
-                dto.getArquivo(),
-                dto.getContratadaId(),
-                dto.getFuncionarioId(),
+                dto.arquivo(),
+                dto.contratadaNome(),
+                dto.funcionarioNome(),
                 TipoDocumento.valueOf(tipoEnum.name())
         );
 
         Documento documento = Documento.builder()
-                .tipoDocumento(TipoDocumento.valueOf(dto.getTipoDocumento()))
-                .nomeArquivo(dto.getArquivo().getOriginalFilename())
-                .tipo(dto.getTipoDocumento())
-                .status("PENDENTE")
-                .dataPostagem(LocalDateTime.now())  // Captura automática
-                .contratada(dto.getContratadaId() != null ? contratadaRepository.findById(dto.getContratadaId()).orElse(null) : null)
-                .funcionario(dto.getFuncionarioId() != null ? funcionarioRepository.findById(dto.getFuncionarioId()).orElse(null) : null)
+                .tipoDocumento(TipoDocumento.valueOf(dto.tipoDocumento()))
+                .nomeArquivo(dto.arquivo().getOriginalFilename())
+                .statusDocumento(StatusDocumento.valueOf("PENDENTE"))
+                .dataPostagem(LocalDateTime.now())
+                .contratada(dto.contratadaNome() != null ? contratadaRepository.findByNome(dto.contratadaNome()).orElse(null) : null)
+                .funcionario(dto.funcionarioNome() != null ? funcionarioRepository.findByNomeCompleto(dto.funcionarioNome()).orElse(null) : null)
                 .build();
 
         return documentoRepository.save(documento);
     }
 
-    public List<Documento> findByContratadaUuid(Long contratadaId) {
-        return documentoRepository.findByContratadaId(contratadaId);
+    public List<Documento> findByContratadaNome(String contratadaNome) {
+        return documentoRepository.findByContratadaNome(contratadaNome);
     }
 
     public List<Documento> findByFuncionarioId(Long funcionarioId) {
         return documentoRepository.findByFuncionarioId(funcionarioId);
     }
 
-    public List<Documento> findByContratadaIdAndTipo(Long contratadaId, String tipo) {
-        return documentoRepository.findByContratadaIdAndTipo(contratadaId, tipo);
+    public List<Documento> findByContratadaNomeAndTipo(String contratadaNome, TipoDocumento tipoDocumento) {
+        return documentoRepository.findByContratadaNomeAndTipoDocumento(contratadaNome, tipoDocumento);
+    }
+
+    public Page<Documento> findByFuncionarioNomeContainingIgnoreCase(String nome, Pageable pageable) {
+        return documentoRepository.findByFuncionarioNomeCompletoContainingIgnoreCase(nome, pageable);
     }
 
 }
