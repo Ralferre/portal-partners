@@ -1,10 +1,12 @@
 package com.example.portalpartners.repository;
 
+import com.example.portalpartners.dto.DocumentoResponse;
 import com.example.portalpartners.model.Documento;
 import com.example.portalpartners.model.StatusDocumento;
 import com.example.portalpartners.model.TipoDocumento;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -23,4 +25,6 @@ public interface DocumentoRepository extends JpaRepository<Documento, Long> {
             String nomeCompleto,
             Pageable pageable
     );
+
+    Page<DocumentoResponse> findAll(Specification<Documento> spec, Pageable pageable);
 }

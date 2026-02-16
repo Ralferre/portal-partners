@@ -2,63 +2,53 @@ package com.example.portalpartners.controller;
 
 import com.example.portalpartners.dto.CreateFuncionarioRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
-import com.example.portalpartners.model.Contratada;
-import com.example.portalpartners.model.Funcionario;
-import com.example.portalpartners.repository.ContratadaRepository;
-import com.example.portalpartners.repository.FuncionarioRepository;
+import com.example.portalpartners.model.Role;
+import com.example.portalpartners.model.Usuario;
+import com.example.portalpartners.service.FuncionarioService;
+import com.example.portalpartners.service.UsuarioLogadoService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/funcionarios")
+//@PreAuthorize("hasRole('CONTRATADA')")
 @RequiredArgsConstructor
 public class FuncionarioController {
-    private final FuncionarioRepository funcionarioRepository;
-    private final ContratadaRepository contratadaRepository;
+    private final FuncionarioService funcionarioService;
+    private final UsuarioLogadoService usuarioLogadoService;
 
-    @GetMapping
-    public List<FuncionarioResponse> funcionarioList() {
-        return funcionarioRepository.findAll()
-                .stream()
-                .map(f -> new FuncionarioResponse(
-                        f.getId(),
-                        f.getCpf(),
-                        f.getNomeCompleto(),
-                        f.getContratada().getId(),
-                        f.getContratada().getNome()
-                ))
-                .toList();
-    }
+//    @GetMapping
+//    public List<FuncionarioResponse> listarPaginado(
+//            @RequestParam(defaultValue = "0") int page
+//    ) {
+//        return funcionarioService.listar();
+//    }
+//    @Transactional
+//    @PostMapping("/contratada")
+//    public FuncionarioResponse criar(@RequestBody CreateFuncionarioRequest request) {
+//
+//        Usuario usuario = usuarioLogadoService.getUsuario();
+//        if (usuario.getRole() == Role.ADMIN || usuario.getRole() == Role.CONTRATANTE) {
+//            throw new RuntimeException("Usuário sem permissão");
+//        } else {
+//            return funcionarioService.criar(request);
+//        }
+//    }
 
-    @PostMapping
-    public ResponseEntity<FuncionarioResponse> createFuncionario(@RequestBody CreateFuncionarioRequest createFuncionarioRequest) {
-        if (funcionarioRepository.existsByCpf(createFuncionarioRequest.cpf())) {
-            return ResponseEntity.badRequest().build();
+    @GetMapping("/funcionario/{nomeCompleto}")
+    public FuncionarioResponse buscarPorNomeCompleto(
+            @PathVariable String nomeCompleto
+    ) {
+        Usuario usuario = usuarioLogadoService.getUsuario();
+        if (usuario.getRole() == Role.ADMIN || usuario.getRole() == Role.CONTRATANTE) {
+            throw new RuntimeException("Usuário sem permissão");
+        } else {
+            return funcionarioService.buscarFuncionarioPorNomeCompleto(nomeCompleto);
         }
-
-        Contratada contratada = contratadaRepository.findById(createFuncionarioRequest.contratadaId())
-                .orElseThrow(() -> new RuntimeException("Contratada não encontrada"));
-
-
-        Funcionario funcionario = Funcionario.builder()
-                .cpf(createFuncionarioRequest.cpf())
-                .nomeCompleto(createFuncionarioRequest.nomeCompleto())
-                .contratada(contratada)
-                .build();
-        funcionario = funcionarioRepository.save(funcionario);
-
-        FuncionarioResponse response = new FuncionarioResponse(
-                funcionario.getId(),
-                funcionario.getCpf(),
-                funcionario.getNomeCompleto(),
-                funcionario.getContratada().getId(),
-                funcionario.getContratada().getNome()
-        );
-
-        return ResponseEntity.ok(response);
-
     }
+
 }
+

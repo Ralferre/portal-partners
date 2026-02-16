@@ -1,14 +1,12 @@
 package com.example.portalpartners.controller;
 
-import com.example.portalpartners.dto.ContratadaResponse;
-import com.example.portalpartners.dto.CreateContratadaRequest;
-
-import com.example.portalpartners.model.Contratada;
-import com.example.portalpartners.model.Contratante;
-import com.example.portalpartners.repository.ContratadaRepository;
-import com.example.portalpartners.repository.ContratanteRepository;
+import com.example.portalpartners.dto.*;
+import com.example.portalpartners.exceptions.BusinessRulersException;
+import com.example.portalpartners.model.Role;
+import com.example.portalpartners.model.Usuario;
+import com.example.portalpartners.service.FuncionarioService;
+import com.example.portalpartners.service.UsuarioLogadoService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,53 +14,37 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/contratadas")
+//@PreAuthorize("hasRole('CONTRATADA')")
 @RequiredArgsConstructor
 @Transactional
 public class ContratadaController {
-    private final ContratadaRepository contratadaRepository;
-    private final ContratanteRepository contratanteRepository;
 
-    @GetMapping
-    public List<ContratadaResponse> contratadaList(Contratante contratante) {
-        return contratadaRepository.findAll()
-                .stream()
-                .map(c -> new ContratadaResponse(
-                        c.getId(),
-                        c.getCnpj(),
-                        c.getEmail(),
-                        c.getNome(),
-                        c.getSenha(),
-                        c.getNumeroContrato(),
-                        c.getNumeroPedido(),
-                        contratante.getId(),
-                        contratante.getNome()
-                ))
-                .toList();
+    private final FuncionarioService funcionarioService;
+    private final UsuarioLogadoService usuarioLogadoService;
+
+    @GetMapping("/funcionario")
+    public FuncionarioResponse buscarFuncionarioPorNome(
+            @RequestParam String nomeCompleto
+    ) {
+        return funcionarioService.buscarFuncionarioPorNomeCompleto(nomeCompleto);
     }
 
-    @PostMapping
-    public ResponseEntity<Contratada> createContratada(@RequestBody CreateContratadaRequest createContratadaRequest) {
-        if (contratadaRepository.existsByCnpj(createContratadaRequest.cnpj())) {
-            return ResponseEntity.badRequest().build();
+    @Transactional
+    @PostMapping("/funcionarios")
+    public FuncionarioResponse criarFuncionario(
+            @RequestBody CreateFuncionarioRequest request
+    ) {
+        Usuario usuario = usuarioLogadoService.getUsuario();
+        if (usuario.getRole() == Role.ADMIN || usuario.getRole() == Role.CONTRATANTE) {
+            throw new BusinessRulersException("Usuário sem permissão");
         }
+        return funcionarioService.criar(request);
+    }
 
-        Contratante contratante = contratanteRepository.findById(createContratadaRequest.contratanteId())
-                .orElseThrow(() -> new RuntimeException("Contratante não encontrada"));
-
-        if (createContratadaRequest.contratanteNome() != null &&
-                !contratante.getNome().equalsIgnoreCase(createContratadaRequest.nome())) {
-            throw new IllegalArgumentException("Nome da contratante não corresponde ao ID informado");
-        }
-
-        Contratada contratada = Contratada.builder()
-                .cnpj(createContratadaRequest.cnpj())
-                .nome(createContratadaRequest.nome())
-                .email(createContratadaRequest.email())
-                .senha(createContratadaRequest.senha())
-                .numeroContrato(createContratadaRequest.numeroContrato())
-                .numeroPedido(createContratadaRequest.numeroPedido())
-                .contratante(contratante)
-                .build();
-        return ResponseEntity.ok(contratadaRepository.save(contratada));
+    @GetMapping("/list-funcionarios")
+    public List<FuncionarioResponse> listarPaginado(
+            @RequestParam(defaultValue = "0") int page
+    ) {
+        return funcionarioService.listar();
     }
 }

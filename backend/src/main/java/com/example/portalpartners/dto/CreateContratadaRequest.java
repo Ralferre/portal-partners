@@ -6,7 +6,5 @@ public record CreateContratadaRequest(
         String email,
         String senha,
         String numeroContrato,
-        String numeroPedido,
-        Long contratanteId,
-        String contratanteNome
+        String numeroPedido
 ) { }

@@ -1,10 +1,12 @@
 package com.example.portalpartners.dto;
 
+import com.example.portalpartners.model.TipoDocumento;
 import org.springframework.web.multipart.MultipartFile;
 
 public record CreateDocumentoRequest(
-        String contratadaNome,
-        String funcionarioNome,
-        String tipoDocumento,
+        Long contratadaId,
+        Long funcionarioId,
+        TipoDocumento tipoDocumento,
+        TypeReferenceFile tipoReferenciaDocumento,
         MultipartFile arquivo
 ) { }
