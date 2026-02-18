@@ -12,9 +12,8 @@ public record FuncionarioResponse(
     public static FuncionarioResponse fromEntity(Funcionario f) {
         return new FuncionarioResponse(
                 f.getId(),
-                f.getNomeCompleto(),
-                f.getCpf()
-//                f.getContratada()
+                f.getCpf(),
+                f.getNomeCompleto()
         );
     }
 }

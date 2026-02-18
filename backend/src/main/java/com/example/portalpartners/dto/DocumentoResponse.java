@@ -1,8 +1,8 @@
 package com.example.portalpartners.dto;
 
+import com.example.portalpartners.model.Documento;
 import com.example.portalpartners.model.StatusDocumento;
 import com.example.portalpartners.model.TipoDocumento;
-import jakarta.persistence.PrePersist;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -17,4 +17,27 @@ public class DocumentoResponse {
     private String contratadaNome;
     private String funcionarioNome;
 
+    public static DocumentoResponse fromEntity(Documento documento) {
+        DocumentoResponse response = new DocumentoResponse();
+
+        response.setId(documento.getId());
+        response.setTipoDocumento(documento.getTipoDocumento());
+        response.setNomeArquivo(documento.getNomeArquivo());
+        response.setStatusDocumento(documento.getStatusDocumento());
+        response.setDataPostagem(documento.getDataPostagem());
+
+        response.setContratadaNome(
+                documento.getContratada() != null
+                        ? documento.getContratada().getNome()
+                        : null
+        );
+
+        response.setFuncionarioNome(
+                documento.getFuncionario() != null
+                        ? documento.getFuncionario().getNomeCompleto()
+                        : null
+        );
+
+        return response;
+    }
 }

@@ -1,7 +1,7 @@
 package com.example.portalpartners.service;
 
-import com.example.portalpartners.exceptions.BusinessRulersException;
-import com.example.portalpartners.exceptions.ResourceNotFopundException;
+import com.example.portalpartners.exceptions.BusinessRulesException;
+import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.Contratada;
 import com.example.portalpartners.model.Contratante;
 import com.example.portalpartners.model.Role;
@@ -28,13 +28,13 @@ public class UsuarioLogadoServiceImpl implements UsuarioLogadoService{
                 SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new BusinessRulersException("Usuário não autenticado");
+            throw new BusinessRulesException("Usuário não autenticado");
         }
 
         String email = authentication.getName();
 
         return usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFopundException("Usuário não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
     @Override
@@ -43,11 +43,11 @@ public class UsuarioLogadoServiceImpl implements UsuarioLogadoService{
         Usuario usuario = getUsuario();
 
         if (usuario.getRole() != Role.CONTRATANTE) {
-            throw new BusinessRulersException("Usuário não é CONTRATANTE");
+            throw new BusinessRulesException("Usuário não é CONTRATANTE");
         }
 
         return contratanteRepository.findByUsuario(usuario)
-                .orElseThrow(() -> new ResourceNotFopundException("Contratante não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Contratante não encontrada"));
     }
 
     @Override
@@ -56,11 +56,11 @@ public class UsuarioLogadoServiceImpl implements UsuarioLogadoService{
         Usuario usuario = getUsuario();
 
         if (usuario.getRole() != Role.CONTRATADA) {
-            throw new BusinessRulersException("Usuário não é CONTRATADA");
+            throw new BusinessRulesException("Usuário não é CONTRATADA");
         }
 
         return contratadaRepository.findByUsuario(usuario)
-                .orElseThrow(() -> new BusinessRulersException("Contratada não encontrada"));
+                .orElseThrow(() -> new BusinessRulesException("Contratada não encontrada"));
     }
 
     @Override

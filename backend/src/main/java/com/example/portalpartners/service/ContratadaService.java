@@ -3,7 +3,7 @@ package com.example.portalpartners.service;
 import com.example.portalpartners.dto.ContratadaResponse;
 import com.example.portalpartners.dto.CreateContratadaRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
-import com.example.portalpartners.exceptions.ResourceNotFopundException;
+import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.*;
 import com.example.portalpartners.repository.ContratadaRepository;
 import com.example.portalpartners.repository.UsuarioRepository;
@@ -52,7 +52,7 @@ public class ContratadaService {
                 .findByContratanteAndNomeContainingIgnoreCase(contratante, nome)
                 .map(ContratadaResponse::fromEntity)
                 .orElseThrow(() ->
-                        new ResourceNotFopundException("Contratada não encontrada"));
+                        new ResourceNotFoundException("Contratada não encontrada"));
     }
 
     @Transactional
@@ -85,7 +85,7 @@ public class ContratadaService {
     public void removerPorNome(String nome) {
         Contratada contratada = contratadaRepository
                 .findByNome(nome)
-                .orElseThrow(() -> new ResourceNotFopundException("Contratada não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Contratada não encontrada"));
 
         contratadaRepository.delete(contratada);
     }

@@ -2,7 +2,7 @@ package com.example.portalpartners.service;
 
 import com.example.portalpartners.dto.ContratanteResponse;
 import com.example.portalpartners.dto.CreateContratanteRequest;
-import com.example.portalpartners.exceptions.ResourceNotFopundException;
+import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.Contratante;
 import com.example.portalpartners.model.Role;
 import com.example.portalpartners.model.Usuario;
@@ -50,7 +50,7 @@ public class ContratanteService {
     public void buscarPorNome(String nome) {
         Contratante contratante = contratanteRepository
                 .findByNome(nome)
-                .orElseThrow(() -> new ResourceNotFopundException("Contratante não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Contratante não encontrada"));
 
         contratanteRepository.findByNome(contratante.getNome());
     }
@@ -58,7 +58,7 @@ public class ContratanteService {
     public void removerPorNome(String nome) {
         Contratante contratante = contratanteRepository
                 .findByNome(nome)
-                .orElseThrow(() -> new ResourceNotFopundException("Contratante não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Contratante não encontrada"));
 
         contratanteRepository.delete(contratante);
     }

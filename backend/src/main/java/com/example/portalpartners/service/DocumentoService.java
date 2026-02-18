@@ -4,24 +4,31 @@ import com.example.portalpartners.documento.DocumentoSpecification;
 import com.example.portalpartners.dto.CreateDocumentoRequest;
 import com.example.portalpartners.dto.DocumentoResponse;
 import com.example.portalpartners.dto.TypeReferenceFile;
-import com.example.portalpartners.exceptions.BusinessRulersException;
-import com.example.portalpartners.model.*;
+import com.example.portalpartners.exceptions.BusinessRulesException;
+import com.example.portalpartners.exceptions.ResourceNotFoundException;
+import com.example.portalpartners.model.Contratada;
+import com.example.portalpartners.model.Contratante;
+import com.example.portalpartners.model.Documento;
+import com.example.portalpartners.model.Funcionario;
+import com.example.portalpartners.model.Role;
+import com.example.portalpartners.model.StatusDocumento;
+import com.example.portalpartners.model.TipoDocumento;
+import com.example.portalpartners.model.Usuario;
 import com.example.portalpartners.repository.ContratadaRepository;
 import com.example.portalpartners.repository.DocumentoRepository;
 import com.example.portalpartners.repository.FuncionarioRepository;
-import com.example.portalpartners.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -33,11 +40,13 @@ public class DocumentoService {
     private final UsuarioLogadoService usuarioLogadoService;
 
     @Transactional
-    public Documento uploadDocumento(CreateDocumentoRequest dto) {
+    public DocumentoResponse uploadDocumento(CreateDocumentoRequest dto) {
         Usuario usuario = usuarioLogadoService.getUsuario();
         if (usuario.getRole() == Role.ADMIN || usuario.getRole() == Role.CONTRATANTE) {
-            throw new BusinessRulersException("Usuário sem permissão");
+            throw new BusinessRulesException("Usuário sem permissão");
         }
+
+        validarArquivo(dto.arquivo());
 
         Documento documento = new Documento();
         documento.setTipoDocumento(dto.tipoDocumento());
@@ -47,31 +56,53 @@ public class DocumentoService {
         if (dto.tipoReferenciaDocumento() == TypeReferenceFile.CONTRATADA) {
 
             if (dto.contratadaId() == null) {
-                throw new BusinessRulersException("Contratada deve ser informada.");
+                throw new BusinessRulesException("Contratada deve ser informada.");
             }
 
             Contratada contratada = contratadaRepository.findById(dto.contratadaId())
-                    .orElseThrow(() -> new BusinessRulersException("Contratada não encontrada"));
+                    .orElseThrow(() -> new BusinessRulesException("Contratada não encontrada"));
 
             documento.setContratada(contratada);
             documento.setFuncionario(null);
         } else if (dto.tipoReferenciaDocumento() == TypeReferenceFile.FUNCIONARIO) {
             if (dto.funcionarioId() == null) {
-                throw new BusinessRulersException("Funcionário deve ser informado");
+                throw new BusinessRulesException("Funcionário deve ser informado");
             }
 
             Funcionario funcionario = funcionarioRepository.findById(dto.funcionarioId())
-                    .orElseThrow(() -> new BusinessRulersException("Funcionário não encontrado"));
+                    .orElseThrow(() -> new BusinessRulesException("Funcionário não encontrado"));
 
             documento.setFuncionario(funcionario);
             documento.setContratada(funcionario.getContratada());
         } else {
-            throw new BusinessRulersException("Tipo de referência inválido");
+            throw new BusinessRulesException("Tipo de referência inválido");
         }
 
         documento.setNomeArquivo(dto.arquivo().getOriginalFilename());
 
-        return documentoRepository.save(documento);
+        Documento saved = documentoRepository.save(documento);
+        return convertToResponse(saved);
+    }
+
+    @Transactional
+    public DocumentoResponse updateStatus(Long documentoId, StatusDocumento novoStatus) {
+
+        Usuario usuario = usuarioLogadoService.getUsuario();
+
+        Documento documento = documentoRepository.findById(documentoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Documento não encontrado"));
+
+        // 🔐 valida permissão por perfil
+        validarPermissaoAlteracao(usuario, documento);
+
+        // 🎯 regra de transição (opcional mas recomendado)
+        validarMudancaStatus(novoStatus);
+
+        documento.setStatusDocumento(novoStatus);
+
+        Documento salvo = documentoRepository.save(documento);
+
+        return convertToResponse(salvo);
     }
 
     public List<Documento> findByContratadaNome(String contratadaNome) {
@@ -101,18 +132,53 @@ public class DocumentoService {
         }
 
         if (usuario.getRole() == Role.CONTRATADA) {
-            return DocumentoSpecification.porContratadaId(
-                    usuario.getId()
-            );
+//            Contratada contratada = usuarioLogadoService.getContratadaLogada();
+            return DocumentoSpecification.porContratadaId(usuario.getId());
         }
 
         if (usuario.getRole() == Role.CONTRATANTE) {
-            return DocumentoSpecification.porContratanteId(
-                    usuario.getId()
-            );
+//            Contratante contratante = usuarioLogadoService.getContratanteLogada();
+            return DocumentoSpecification.porContratanteId(usuario.getId());
         }
 
         throw new AccessDeniedException("Perfil sem permissão");
+    }
+
+    private void validarPermissaoAlteracao(Usuario usuario, Documento documento) {
+
+        // 👑 ADMIN pode tudo
+        if (usuario.getRole() == Role.ADMIN) {
+            return;
+        }
+
+        // 🏢 CONTRATANTE — só suas contratadas
+        if (usuario.getRole() == Role.CONTRATANTE) {
+
+            Contratante contratanteLogado =
+                    usuarioLogadoService.getContratanteLogada();
+
+            Long contratanteDoDocumento =
+                    documento.getContratada()
+                            .getContratante()
+                            .getId();
+
+            if (!contratanteLogado.getId().equals(contratanteDoDocumento)) {
+                throw new AccessDeniedException(
+                        "Você não pode alterar documentos de outra contratante");
+            }
+
+            return;
+        }
+
+        // 🚫 qualquer outro perfil
+        throw new AccessDeniedException("Perfil sem permissão");
+    }
+
+    private void validarMudancaStatus(StatusDocumento novoStatus) {
+
+        if (novoStatus == null) {
+            throw new BusinessRulesException("Status deve ser informado");
+        }
     }
 
     public Page<DocumentoResponse> filtrar(
@@ -146,7 +212,52 @@ public class DocumentoService {
             spec = spec.and(DocumentoSpecification.statusEquals(status));
         }
 
-        return documentoRepository.findAll(spec, pageable);
+        Page<Documento> page = documentoRepository.findAll(spec, pageable);
+
+        return page.map(this::convertToResponse);
+    }
+    
+    private DocumentoResponse convertToResponse(Documento documento) {
+        DocumentoResponse dto = new DocumentoResponse();
+        dto.setId(documento.getId());
+        dto.setTipoDocumento(documento.getTipoDocumento());
+        dto.setNomeArquivo(documento.getNomeArquivo());
+        dto.setStatusDocumento(documento.getStatusDocumento());
+        dto.setDataPostagem(documento.getDataPostagem());
+        dto.setContratadaNome(
+                documento.getContratada() != null ? documento.getContratada().getNome() : null
+        );
+        dto.setFuncionarioNome(
+                documento.getFuncionario() != null ? documento.getFuncionario().getNomeCompleto() : null
+        );
+        return dto;
+    }
+
+    private void validarArquivo(MultipartFile arquivo) {
+        if (arquivo == null || arquivo.isEmpty()) {
+            throw new BusinessRulesException("Arquivo é obrigatório");
+        }
+
+        long maxSize = 10_000_000; // 10MB
+        if (arquivo.getSize() > maxSize) {
+            throw new BusinessRulesException("Arquivo não pode ser maior que 10MB");
+        }
+
+        String[] tiposPermitidos = {
+            "application/pdf",
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword"
+        };
+
+        String contentType = arquivo.getContentType();
+        if (contentType == null || !Arrays.asList(tiposPermitidos).contains(contentType)) {
+            throw new BusinessRulesException(
+                "Tipo de arquivo não permitido. Apenas PDF, JPEG, PNG e DOCX são aceitos"
+            );
+        }
     }
 
 }

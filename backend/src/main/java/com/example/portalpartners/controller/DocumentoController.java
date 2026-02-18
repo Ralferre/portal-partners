@@ -16,8 +16,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/documentos")
 @RequiredArgsConstructor
@@ -65,16 +63,8 @@ public class DocumentoController {
     @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
     @PostMapping("/upload")
     public ResponseEntity<DocumentoResponse> uploadDocumento(@ModelAttribute CreateDocumentoRequest dto) {
-        Documento documento = documentoService.uploadDocumento(dto);
-        DocumentoResponse response = new DocumentoResponse();
-        response.setId(documento.getId());
-        response.setTipoDocumento(documento.getTipoDocumento());
-        response.setStatusDocumento(documento.getStatusDocumento());
-        response.setNomeArquivo(documento.getNomeArquivo());
-        response.setDataPostagem(documento.getDataPostagem());
-        response.setContratadaNome(documento.getContratada().getNome());
-        response.setFuncionarioNome(documento.getFuncionario().getNomeCompleto());
-
+//        DocumentoResponse response = DocumentoResponse.fromEntity(dto);
+        DocumentoResponse response = documentoService.uploadDocumento(dto);
         return ResponseEntity.ok(response);
     }
 
@@ -114,14 +104,11 @@ public class DocumentoController {
 
     @PutMapping("/status/{id}")
     @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_ADMIN')")
-    public ResponseEntity<DocumentoResponse> atualizarStatus(@PathVariable Long id, @RequestBody UpdateRequest request) {
-        Documento documento = documentoRepository.findById(id).orElse(null);
-        if (documento == null) {
-            return ResponseEntity.notFound().build();
-        }
-        documento.setStatusDocumento(request.statusDocumento());
-        documentoRepository.save(documento);
-        return ResponseEntity.ok(toResponse(documento));
+    public ResponseEntity<DocumentoResponse> atualizarStatus(
+            @PathVariable Long id,
+            @RequestBody UpdateRequest request) {
+        DocumentoResponse response = documentoService.updateStatus(id, request.statusDocumento());
+        return ResponseEntity.ok(response);
     }
 
     @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")

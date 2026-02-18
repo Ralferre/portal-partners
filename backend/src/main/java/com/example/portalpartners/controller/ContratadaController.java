@@ -1,7 +1,7 @@
 package com.example.portalpartners.controller;
 
 import com.example.portalpartners.dto.*;
-import com.example.portalpartners.exceptions.BusinessRulersException;
+import com.example.portalpartners.exceptions.BusinessRulesException;
 import com.example.portalpartners.model.Role;
 import com.example.portalpartners.model.Usuario;
 import com.example.portalpartners.service.FuncionarioService;
@@ -36,7 +36,7 @@ public class ContratadaController {
     ) {
         Usuario usuario = usuarioLogadoService.getUsuario();
         if (usuario.getRole() == Role.ADMIN || usuario.getRole() == Role.CONTRATANTE) {
-            throw new BusinessRulersException("Usuário sem permissão");
+            throw new BusinessRulesException("Usuário sem permissão");
         }
         return funcionarioService.criar(request);
     }

@@ -2,7 +2,8 @@ package com.example.portalpartners.service;
 
 import com.example.portalpartners.dto.CreateFuncionarioRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
-import com.example.portalpartners.exceptions.ResourceNotFopundException;
+import com.example.portalpartners.exceptions.ConflictException;
+import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.Contratada;
 import com.example.portalpartners.model.Funcionario;
 import com.example.portalpartners.repository.FuncionarioRepository;
@@ -21,6 +22,10 @@ public class FuncionarioService {
     public FuncionarioResponse criar(CreateFuncionarioRequest request) {
 
         Contratada contratada = usuarioLogadoService.getContratadaLogada();
+
+        if (funcionarioRepository.existsByCpf(request.cpf())) {
+            throw new ConflictException("Funcionário com este CPF já cadastrado");
+        }
 
         Funcionario funcionario = Funcionario.builder()
                 .nomeCompleto(request.nomeCompleto())
@@ -52,7 +57,7 @@ public class FuncionarioService {
                 .findByContratadaAndNomeCompletoContainingIgnoreCase(contratada, nomeCompleto);
 
         if (funcionario == null) {
-            throw new ResourceNotFopundException("Funcionário não encontrado");
+            throw new ResourceNotFoundException("Funcionário não encontrado");
         }
     return FuncionarioResponse.fromEntity(funcionario);
     }
