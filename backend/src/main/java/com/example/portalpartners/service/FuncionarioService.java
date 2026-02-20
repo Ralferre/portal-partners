@@ -3,13 +3,19 @@ package com.example.portalpartners.service;
 import com.example.portalpartners.dto.CreateFuncionarioRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
 import com.example.portalpartners.exceptions.ConflictException;
+import com.example.portalpartners.exceptions.ForbiddenException;
 import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.Contratada;
+import com.example.portalpartners.model.Contratante;
 import com.example.portalpartners.model.Funcionario;
+import com.example.portalpartners.model.Role;
+import com.example.portalpartners.model.Usuario;
 import com.example.portalpartners.repository.FuncionarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 @Service
@@ -23,13 +29,14 @@ public class FuncionarioService {
 
         Contratada contratada = usuarioLogadoService.getContratadaLogada();
 
-        if (funcionarioRepository.existsByCpf(request.cpf())) {
-            throw new ConflictException("Funcionário com este CPF já cadastrado");
-        }
+        String cpfNormalizado = normalizarCpf(request.cpf());
 
+        if (funcionarioRepository.existsByCpfAndContratada(cpfNormalizado, contratada)) {
+            throw new ConflictException("Funcionário com este CPF já existe nesta contratada");
+        }
         Funcionario funcionario = Funcionario.builder()
                 .nomeCompleto(request.nomeCompleto())
-                .cpf(request.cpf())
+                .cpf(cpfNormalizado)
                 .contratada(contratada)
                 .build();
 
@@ -38,9 +45,30 @@ public class FuncionarioService {
         return FuncionarioResponse.fromEntity(funcionario);
     }
 
-    public List<FuncionarioResponse> listar() {
-        Contratada contratada = usuarioLogadoService.getContratadaLogada();
+    public Page<FuncionarioResponse> listarPaginado(int page, int size) {
+        Usuario usuario = usuarioLogadoService.getUsuario();
 
+        if (usuario.getRole() == Role.ADMIN) {
+            return funcionarioRepository.findAll(PageRequest.of(page, size))
+                    .map(FuncionarioResponse::fromEntity);
+        }
+
+        Contratada contratada = usuarioLogadoService.getContratadaLogada();
+        return funcionarioRepository.findByContratada(contratada, PageRequest.of(page, size))
+                .map(FuncionarioResponse::fromEntity);
+    }
+
+    public List<FuncionarioResponse> listar() {
+        Usuario usuario = usuarioLogadoService.getUsuario();
+
+        if (usuario.getRole() == Role.ADMIN) {
+            return funcionarioRepository.findAll()
+                    .stream()
+                    .map(FuncionarioResponse::fromEntity)
+                    .toList();
+        }
+
+        Contratada contratada = usuarioLogadoService.getContratadaLogada();
         return funcionarioRepository.findByContratada(contratada);
     }
 
@@ -51,14 +79,60 @@ public class FuncionarioService {
     }
 
     public FuncionarioResponse buscarFuncionarioPorNomeCompleto(String nomeCompleto) {
-        Contratada contratada = usuarioLogadoService.getContratadaLogada();
+        Usuario usuario = usuarioLogadoService.getUsuario();
 
-        Funcionario funcionario = funcionarioRepository
-                .findByContratadaAndNomeCompletoContainingIgnoreCase(contratada, nomeCompleto);
+        Funcionario funcionario;
+        if (usuario.getRole() == Role.ADMIN) {
+            funcionario = funcionarioRepository
+                    .findFirstByNomeCompletoContainingIgnoreCase(nomeCompleto);
+        } else {
+            Contratada contratada = usuarioLogadoService.getContratadaLogada();
+            funcionario = funcionarioRepository
+                    .findByContratadaAndNomeCompletoContainingIgnoreCase(contratada, nomeCompleto);
+        }
 
         if (funcionario == null) {
             throw new ResourceNotFoundException("Funcionário não encontrado");
         }
     return FuncionarioResponse.fromEntity(funcionario);
+    }
+
+    @Transactional
+    public void deletarFuncionario(Long id) {
+
+        Funcionario funcionario = funcionarioRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+
+        Usuario usuario = usuarioLogadoService.getUsuario();
+
+        if (usuario.getRole() == Role.ADMIN) {
+            funcionarioRepository.delete(funcionario);
+            return;
+        }
+
+        if (usuario.getRole() == Role.CONTRATADA) {
+            Contratada contratadaLogada = usuarioLogadoService.getContratadaLogada();
+            if (!funcionario.getContratada().getId().equals(contratadaLogada.getId())) {
+                throw new ForbiddenException("Você não tem permissão");
+            }
+            funcionarioRepository.delete(funcionario);
+            return;
+        }
+
+        if (usuario.getRole() == Role.CONTRATANTE) {
+            Contratante contratanteLogado = usuarioLogadoService.getContratanteLogada();
+            if (!funcionario.getContratada().getContratante().getId().equals(contratanteLogado.getId())) {
+                throw new ForbiddenException("Você não tem permissão");
+            }
+            funcionarioRepository.delete(funcionario);
+            return;
+        }
+
+        throw new ForbiddenException("Perfil sem permissão");
+    }
+
+    private String normalizarCpf(String cpf) {
+        if (cpf == null) return null;
+        return cpf.replaceAll("\\D", "");
     }
 }

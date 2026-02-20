@@ -5,6 +5,7 @@ import com.example.portalpartners.dto.CreateDocumentoRequest;
 import com.example.portalpartners.dto.DocumentoResponse;
 import com.example.portalpartners.dto.TypeReferenceFile;
 import com.example.portalpartners.exceptions.BusinessRulesException;
+import com.example.portalpartners.exceptions.ForbiddenException;
 import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.Contratada;
 import com.example.portalpartners.model.Contratante;
@@ -18,6 +19,8 @@ import com.example.portalpartners.repository.ContratadaRepository;
 import com.example.portalpartners.repository.DocumentoRepository;
 import com.example.portalpartners.repository.FuncionarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +42,7 @@ public class DocumentoService {
     private final ContratadaRepository contratadaRepository;
     private final FuncionarioRepository funcionarioRepository;
     private final UsuarioLogadoService usuarioLogadoService;
+    private final MinioService minioService;
 
     @Transactional
     public DocumentoResponse uploadDocumento(CreateDocumentoRequest dto) {
@@ -55,12 +60,13 @@ public class DocumentoService {
 
         if (dto.tipoReferenciaDocumento() == TypeReferenceFile.CONTRATADA) {
 
-            if (dto.contratadaId() == null) {
-                throw new BusinessRulesException("Contratada deve ser informada.");
+            Contratada contratada;
+            if (dto.contratadaId() != null) {
+                contratada = contratadaRepository.findById(dto.contratadaId())
+                        .orElseThrow(() -> new BusinessRulesException("Contratada não encontrada"));
+            } else {
+                contratada = usuarioLogadoService.getContratadaLogada();
             }
-
-            Contratada contratada = contratadaRepository.findById(dto.contratadaId())
-                    .orElseThrow(() -> new BusinessRulesException("Contratada não encontrada"));
 
             documento.setContratada(contratada);
             documento.setFuncionario(null);
@@ -79,6 +85,15 @@ public class DocumentoService {
         }
 
         documento.setNomeArquivo(dto.arquivo().getOriginalFilename());
+        documento.setContentType(dto.arquivo().getContentType());
+
+        String objectName = minioService.uploadFile(
+                dto.arquivo(),
+                documento.getContratada() != null ? documento.getContratada().getNome() : "contratada",
+                documento.getFuncionario() != null ? documento.getFuncionario().getNomeCompleto() : null,
+                dto.tipoDocumento()
+        );
+        documento.setArquivoPath(objectName);
 
         Documento saved = documentoRepository.save(documento);
         return convertToResponse(saved);
@@ -99,10 +114,120 @@ public class DocumentoService {
         validarMudancaStatus(novoStatus);
 
         documento.setStatusDocumento(novoStatus);
+        documento.setDataStatusAtualizado(LocalDateTime.now());
 
         Documento salvo = documentoRepository.save(documento);
 
         return convertToResponse(salvo);
+    }
+
+    @Transactional
+    public DownloadPayload download(Long documentoId) {
+        Usuario usuario = usuarioLogadoService.getUsuario();
+
+        Documento documento = documentoRepository.findById(documentoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Documento não encontrado"));
+
+        // reutiliza regras de acesso (quem pode ver / mexer neste documento)
+        // CONTRATADA pode baixar apenas dela; CONTRATANTE apenas suas contratadas; ADMIN tudo.
+        if (usuario.getRole() == Role.ADMIN) {
+            // ok
+        } else if (usuario.getRole() == Role.CONTRATADA) {
+            Contratada contratadaLogada = usuarioLogadoService.getContratadaLogada();
+            if (documento.getContratada() == null
+                    || !documento.getContratada().getId().equals(contratadaLogada.getId())) {
+                throw new ForbiddenException("Você não tem permissão");
+            }
+        } else if (usuario.getRole() == Role.CONTRATANTE) {
+            Contratante contratanteLogado = usuarioLogadoService.getContratanteLogada();
+            if (documento.getContratada() == null
+                    || documento.getContratada().getContratante() == null
+                    || !documento.getContratada().getContratante().getId().equals(contratanteLogado.getId())) {
+                throw new ForbiddenException("Você não tem permissão");
+            }
+        } else {
+            throw new ForbiddenException("Perfil sem permissão");
+        }
+
+        // marca como baixado pela contratante (para badge de "novos")
+        if (usuario.getRole() == Role.CONTRATANTE && documento.getDataDownloadContratante() == null) {
+            documento.setDataDownloadContratante(LocalDateTime.now());
+            documentoRepository.save(documento);
+        }
+
+        InputStream stream = minioService.getObjectStream(documento.getArquivoPath());
+        Resource resource = new InputStreamResource(stream);
+
+        String contentType = documento.getContentType();
+        if (contentType == null || contentType.isBlank()) {
+            try {
+                contentType = minioService.statObject(documento.getArquivoPath()).contentType();
+            } catch (Exception ignored) {
+                contentType = "application/octet-stream";
+            }
+        }
+
+        return new DownloadPayload(resource, documento.getNomeArquivo(), contentType);
+    }
+
+    public long countNovosDocumentosParaContratante() {
+        Usuario usuario = usuarioLogadoService.getUsuario();
+        if (usuario.getRole() != Role.CONTRATANTE) {
+            throw new AccessDeniedException("Apenas CONTRATANTE pode consultar novos documentos");
+        }
+
+        Contratante contratanteLogado = usuarioLogadoService.getContratanteLogada();
+        Specification<Documento> spec = Specification.<Documento>where(null)
+                .and(DocumentoSpecification.porContratanteId(contratanteLogado.getId()))
+                .and((Specification<Documento>)
+                        (root, query, cb) -> cb.isNull(root.get("dataDownloadContratante")));
+
+        return documentoRepository.count(spec);
+    }
+
+    public List<TipoDocumento> listarTiposDocumento() {
+        return List.of(TipoDocumento.values());
+    }
+
+    @Transactional
+    public void deletarDocumento(Long id) {
+
+        Documento documento = documentoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Documento não encontrado"));
+
+        Usuario usuario = usuarioLogadoService.getUsuario();
+
+        if (usuario.getRole() == Role.ADMIN) {
+            documentoRepository.delete(documento);
+            return;
+        }
+
+        if (usuario.getRole() == Role.CONTRATADA) {
+            Contratada contratadaLogada = usuarioLogadoService.getContratadaLogada();
+
+            if (documento.getContratada() == null
+                    || !documento.getContratada().getId().equals(contratadaLogada.getId())) {
+                throw new ForbiddenException("Você não tem permissão");
+            }
+
+            documentoRepository.delete(documento);
+            return;
+        }
+
+        if (usuario.getRole() == Role.CONTRATANTE) {
+            Contratante contratanteLogado = usuarioLogadoService.getContratanteLogada();
+
+            if (documento.getContratada() == null
+                    || documento.getContratada().getContratante() == null
+                    || !documento.getContratada().getContratante().getId().equals(contratanteLogado.getId())) {
+                throw new ForbiddenException("Você não tem permissão");
+            }
+
+            documentoRepository.delete(documento);
+            return;
+        }
+
+        throw new ForbiddenException("Perfil sem permissão");
     }
 
     public List<Documento> findByContratadaNome(String contratadaNome) {
@@ -132,13 +257,13 @@ public class DocumentoService {
         }
 
         if (usuario.getRole() == Role.CONTRATADA) {
-//            Contratada contratada = usuarioLogadoService.getContratadaLogada();
-            return DocumentoSpecification.porContratadaId(usuario.getId());
+            Contratada contratada = usuarioLogadoService.getContratadaLogada();
+            return DocumentoSpecification.porContratadaId(contratada.getId());
         }
 
         if (usuario.getRole() == Role.CONTRATANTE) {
-//            Contratante contratante = usuarioLogadoService.getContratanteLogada();
-            return DocumentoSpecification.porContratanteId(usuario.getId());
+            Contratante contratante = usuarioLogadoService.getContratanteLogada();
+            return DocumentoSpecification.porContratanteId(contratante.getId());
         }
 
         throw new AccessDeniedException("Perfil sem permissão");
@@ -179,7 +304,15 @@ public class DocumentoService {
         if (novoStatus == null) {
             throw new BusinessRulesException("Status deve ser informado");
         }
+
+        if (novoStatus != StatusDocumento.PENDENTE
+                && novoStatus != StatusDocumento.APROVADO
+                && novoStatus != StatusDocumento.REPROVADO) {
+            throw new BusinessRulesException("Status inválido. Use PENDENTE, APROVADO ou REPROVADO");
+        }
     }
+
+    public record DownloadPayload(Resource resource, String filename, String contentType) {}
 
     public Page<DocumentoResponse> filtrar(
             String contratadaNome,
@@ -222,8 +355,12 @@ public class DocumentoService {
         dto.setId(documento.getId());
         dto.setTipoDocumento(documento.getTipoDocumento());
         dto.setNomeArquivo(documento.getNomeArquivo());
+        dto.setArquivoPath(documento.getArquivoPath());
+        dto.setContentType(documento.getContentType());
         dto.setStatusDocumento(documento.getStatusDocumento());
         dto.setDataPostagem(documento.getDataPostagem());
+        dto.setDataDownloadContratante(documento.getDataDownloadContratante());
+        dto.setDataStatusAtualizado(documento.getDataStatusAtualizado());
         dto.setContratadaNome(
                 documento.getContratada() != null ? documento.getContratada().getNome() : null
         );

@@ -11,10 +11,14 @@ import com.example.portalpartners.service.DocumentoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/documentos")
@@ -111,6 +115,39 @@ public class DocumentoController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{id}/download")
+    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
+    public ResponseEntity<org.springframework.core.io.Resource> download(@PathVariable Long id) {
+        DocumentoService.DownloadPayload payload = documentoService.download(id);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.filename() + "\"");
+
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(payload.contentType());
+        } catch (Exception e) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(mediaType)
+                .body(payload.resource());
+    }
+
+    @GetMapping("/novos/count")
+    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE')")
+    public ResponseEntity<Long> countNovos() {
+        return ResponseEntity.ok(documentoService.countNovosDocumentosParaContratante());
+    }
+
+    @GetMapping("/tipos")
+    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
+    public ResponseEntity<List<TipoDocumento>> listarTipos() {
+        return ResponseEntity.ok(documentoService.listarTiposDocumento());
+    }
+
     @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
     @GetMapping
     public Page<DocumentoResponse> filtrar(
@@ -128,5 +165,12 @@ public class DocumentoController {
                 status,
                 PageRequest.of(page, size)
         );
+    }
+
+    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+        documentoService.deletarDocumento(id);
+        return ResponseEntity.noContent().build();
     }
 }

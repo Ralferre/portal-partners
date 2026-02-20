@@ -1,16 +1,24 @@
 import { AppLayout } from "./AppLayout";
-import { AppTable } from "../components/common/AppTable";
-import { AppCard } from "../components/common/AppCard";
+import { useAuth } from "../contexts/AuthContext";
+import { AdminDashboard } from "../components/dashboards/AdminDashboard";
+import { ContratanteDashboard } from "../components/dashboards/ContratanteDashboard";
+import { ContratadaDashboard } from "../components/dashboards/ContratadaDashboard";
 
 export function Dashboard() {
-  return (
-    <AppLayout
-      children={
-        <>
-          <AppCard />
-          <AppTable />
-        </>
-      }
-    />
-  );
+  const { user } = useAuth();
+
+  const renderDashboard = () => {
+    switch (user?.role) {
+      case "ADMIN":
+        return <AdminDashboard />;
+      case "CONTRATANTE":
+        return <ContratanteDashboard />;
+      case "CONTRATADA":
+        return <ContratadaDashboard />;
+      default:
+        return null;
+    }
+  };
+
+  return <AppLayout>{renderDashboard()}</AppLayout>;
 }

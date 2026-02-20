@@ -21,8 +21,20 @@ public class Documento {
     @Column(nullable = false)
     private String nomeArquivo;
 
+    @Column(name = "arquivo_path")
+    private String arquivoPath;
+
+    @Column(name = "content_type")
+    private String contentType;
+
     @Column(nullable = false)
     private LocalDateTime dataPostagem;
+
+    @Column(name = "data_download_contratante")
+    private LocalDateTime dataDownloadContratante;
+
+    @Column(name = "data_status_atualizado")
+    private LocalDateTime dataStatusAtualizado;
 
     @Enumerated(EnumType.STRING)
     private StatusDocumento statusDocumento;
@@ -58,12 +70,44 @@ public class Documento {
         this.nomeArquivo = nomeArquivo;
     }
 
+    public String getArquivoPath() {
+        return arquivoPath;
+    }
+
+    public void setArquivoPath(String arquivoPath) {
+        this.arquivoPath = arquivoPath;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
     public StatusDocumento getStatusDocumento() {
         return statusDocumento;
     }
 
     public void setStatusDocumento(StatusDocumento statusDocumento) {
         this.statusDocumento = statusDocumento;
+    }
+
+    public LocalDateTime getDataDownloadContratante() {
+        return dataDownloadContratante;
+    }
+
+    public void setDataDownloadContratante(LocalDateTime dataDownloadContratante) {
+        this.dataDownloadContratante = dataDownloadContratante;
+    }
+
+    public LocalDateTime getDataStatusAtualizado() {
+        return dataStatusAtualizado;
+    }
+
+    public void setDataStatusAtualizado(LocalDateTime dataStatusAtualizado) {
+        this.dataStatusAtualizado = dataStatusAtualizado;
     }
 
     @ManyToOne(fetch = FetchType.LAZY)
