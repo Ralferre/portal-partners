@@ -1,32 +1,16 @@
 import { BrowserRouter, Route, Navigate, Routes } from "react-router-dom";
 import { Login } from "../pages/Login";
 import { ForgotPassword } from "../pages/ForgotPassword";
-import React from "react";
 import { Dashboard } from "../pages/Dashboard";
-import { ReportFiles } from "../pages/ReportFiles";
-import { PostFiles } from "../pages/PostFiles";
-
-type UserRole = "contratante" | "terceirizada";
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  role?: UserRole;
-}
-
-// function ProtectedRoute({ children, role }: ProtectedRouteProps): JSX.Element {
-//   const isAuthenticated = true;
-//   const userRole: UserRole = "contratante";
-
-//   if (!isAuthenticated) {
-//     return <Navigate to="/login" replace />;
-//   }
-
-//   if (role && role !== userRole) {
-//     return <Navigate to="/login" replace />;
-//   }
-
-//   return children;
-// }
+import { Documentos } from "../pages/Documentos";
+import { UploadDocumento } from "../pages/UploadDocumento";
+import { Contratadas } from "../pages/Contratadas";
+import { Funcionarios } from "../pages/Funcionarios";
+import { AdminContratantes } from "../pages/admin/AdminContratantes";
+import { AdminContratadas } from "../pages/admin/AdminContratadas";
+import { AdminFuncionarios } from "../pages/admin/AdminFuncionarios";
+import { Relatorios } from "../pages/Relatorios";
+import { ProtectedRoute } from "./ProtectedRoute";
 
 export function AppRoutes() {
   return (
@@ -34,9 +18,80 @@ export function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/report-files" element={<ReportFiles />} />
-        <Route path="/post-files" element={<PostFiles />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/documentos"
+          element={
+            <ProtectedRoute>
+              <Documentos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upload-documento"
+          element={
+            <ProtectedRoute>
+              <UploadDocumento />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/contratadas"
+          element={
+            <ProtectedRoute>
+              <Contratadas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/funcionarios"
+          element={
+            <ProtectedRoute>
+              <Funcionarios />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/contratantes"
+          element={
+            <ProtectedRoute>
+              <AdminContratantes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/contratadas"
+          element={
+            <ProtectedRoute>
+              <AdminContratadas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/funcionarios"
+          element={
+            <ProtectedRoute>
+              <AdminFuncionarios />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/relatorios"
+          element={
+            <ProtectedRoute>
+              <Relatorios />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

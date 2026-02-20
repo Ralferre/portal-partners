@@ -5,19 +5,37 @@ import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import { JSX, useState } from "react";
 import { isValidEmail } from "../utils/validators";
 import { Auth } from "./Auth";
+import api from "../services/api";
 
 export function ForgotPassword(): JSX.Element {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(null);
+
     const res = isValidEmail(email);
     if (!res) {
       setEmailError("Digite um e-mail válido.");
       return;
     }
-    console.log("Email testado:", email);
+
+    try {
+      setLoading(true);
+      const response = await api.post("/api/auth/forgot-password", { email });
+      const msg = typeof response.data === "string" ? response.data : "Email enviado.";
+      setSubmitSuccess(msg);
+    } catch (err: any) {
+      const message = err?.response?.data?.message;
+      setSubmitError(message || "Falha ao enviar email");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,7 +80,21 @@ export function ForgotPassword(): JSX.Element {
               helperText={emailError ?? undefined}
             />
 
-            <Button type="submit">Enviar</Button>
+            {submitError ? (
+              <Typography color="error" mt={1}>
+                {submitError}
+              </Typography>
+            ) : null}
+
+            {submitSuccess ? (
+              <Typography color="success.main" mt={1}>
+                {submitSuccess}
+              </Typography>
+            ) : null}
+
+            <Button type="submit" disabled={loading}>
+              Enviar
+            </Button>
 
             <Typography textAlign="right" mt={2}>
               <Link href="/login" underline="hover">

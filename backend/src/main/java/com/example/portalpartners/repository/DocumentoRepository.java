@@ -24,4 +24,9 @@ public interface DocumentoRepository extends JpaRepository<Documento, Long>, Jpa
             String nomeCompleto,
             Pageable pageable
     );
+
+    Page<Documento> findByNomeArquivoContainingIgnoreCase(
+            String nomeArquivo,
+            Pageable pageable
+    );
 }

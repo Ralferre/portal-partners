@@ -8,28 +8,47 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { JSX, useState } from "react";
 import { isValidEmail } from "../utils/validators";
 import { Auth } from "./Auth";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export function Login(): JSX.Element {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const handleClickShowPassword = () => setShowPassword(!showPassword);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setSubmitError(null);
+
     const res = isValidEmail(email);
-    const resPasswordError = password.length <= 8;
+    const resPasswordError = password.length >= 8;
     if (!res) {
       setEmailError("Digite um e-mail válido.");
       return;
     }
     if (!resPasswordError) {
-      setPasswordError("A senha deve ter pelo menos 6 caracteres.");
+      setPasswordError("A senha deve ter pelo menos 8 caracteres.");
+      return;
     }
-    console.log("Email testado:", email);
-    console.log("Password:", password);
+
+    try {
+      setLoading(true);
+      await login({ email, senha: password });
+      navigate("/dashboard", { replace: true });
+    } catch (err: any) {
+      const message = err?.response?.data?.message;
+      setSubmitError(message || "Falha ao autenticar");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -115,7 +134,15 @@ export function Login(): JSX.Element {
               helperText={passwordError ?? undefined}
             />
 
-            <Button type="submit">Entrar</Button>
+            {submitError ? (
+              <Typography color="error" mt={1}>
+                {submitError}
+              </Typography>
+            ) : null}
+
+            <Button type="submit" disabled={loading}>
+              Entrar
+            </Button>
 
             <Typography textAlign="right" mt={2}>
               <Link href="/forgot-password" underline="hover">

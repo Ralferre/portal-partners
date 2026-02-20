@@ -3,6 +3,7 @@ package com.example.portalpartners.service;
 import com.example.portalpartners.dto.ContratadaResponse;
 import com.example.portalpartners.dto.CreateContratadaRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
+import com.example.portalpartners.exceptions.ForbiddenException;
 import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.*;
 import com.example.portalpartners.repository.ContratadaRepository;
@@ -60,6 +61,8 @@ public class ContratadaService {
 
         Contratante contratante = usuarioLogadoService.getContratanteLogada();
 
+        String cnpjNormalizado = normalizarCnpj(request.cnpj());
+
         Usuario usuario = Usuario.builder()
                 .email(request.email())
                 .senha(passwordEncoder.encode(request.senha()))
@@ -70,7 +73,7 @@ public class ContratadaService {
 
         Contratada contratada = Contratada.builder()
                 .nome(request.nome())
-                .cnpj(request.cnpj())
+                .cnpj(cnpjNormalizado)
                 .numeroContrato(request.numeroContrato())
                 .numeroPedido(request.numeroPedido())
                 .contratante(contratante)
@@ -80,6 +83,38 @@ public class ContratadaService {
         contratadaRepository.save(contratada);
 
         return ContratadaResponse.fromEntity(contratada);
+    }
+
+    public Page<ContratadaResponse> listarTodas(int page) {
+        return contratadaRepository.findAll(PageRequest.of(page, 10))
+                .map(ContratadaResponse::fromEntity);
+    }
+
+    private String normalizarCnpj(String cnpj) {
+        if (cnpj == null) return null;
+        return cnpj.replaceAll("\\D", "");
+    }
+
+    @Transactional
+    public void deletarContratada(Long id) {
+
+        Contratada contratada = contratadaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Contratada não encontrada"));
+
+        Usuario usuario = usuarioLogadoService.getUsuario();
+
+        if (usuario.getRole() == Role.ADMIN) {
+            contratadaRepository.delete(contratada);
+            return;
+        }
+
+        Contratante contratanteLogado = usuarioLogadoService.getContratanteLogada();
+
+        if (!contratada.getContratante().getId().equals(contratanteLogado.getId())) {
+            throw new ForbiddenException("Você não tem permissão para deletar esta contratada");
+        }
+
+        contratadaRepository.delete(contratada);
     }
 
     public void removerPorNome(String nome) {
