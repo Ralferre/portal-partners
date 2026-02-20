@@ -1,0 +1,11 @@
+package com.example.portalpartners.dto;
+
+import com.example.portalpartners.model.Role;
+
+
+public record AuthResponse (
+    String token,
+    String email,
+    Role role,
+    Long perfilId
+) {}

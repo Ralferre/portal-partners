@@ -1,0 +1,7 @@
+package com.example.portalpartners.dto;
+
+public record CreateFuncionarioRequest(
+        String cpf,
+        String nomeCompleto,
+        String contratadaNome
+) { }

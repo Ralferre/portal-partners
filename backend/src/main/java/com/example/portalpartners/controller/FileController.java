@@ -14,8 +14,8 @@ public class FileController {
         this.minioService = service;
     }
 
-    @PostMapping("/upload")
-    public String upload(@RequestParam("file") MultipartFile file) {
-        return minioService.uploadFile(file);
-    }
+//    @PostMapping("/upload")
+//    public String upload(@RequestParam("file") MultipartFile file) {
+//        return minioService.uploadFile(file);
+//    }
 }

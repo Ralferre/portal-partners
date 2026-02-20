@@ -5,6 +5,7 @@ node_modules/
 .idea/
 *.iml
 Thumbs.db
+.Commands/
 
 .env
 *.env
