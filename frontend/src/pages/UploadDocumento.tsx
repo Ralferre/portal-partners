@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import {
+  Checkbox,
   Box,
   Button,
   Card,
@@ -14,6 +15,8 @@ import {
   Radio,
   Alert,
   CircularProgress,
+  Divider,
+  Paper,
 } from "@mui/material";
 import { CloudUpload as UploadIcon } from "@mui/icons-material";
 import { AppLayout } from "./AppLayout";
@@ -27,12 +30,30 @@ type Funcionario = {
   cpf: string;
 };
 
+type LgpdTermoAtualResponse = {
+  valido: boolean;
+  versaoTermo: string;
+  hashTermo: string;
+  textoTermo: string;
+  timestampConsentimento: string | null;
+};
+
+type SolicitarUploadResponse = {
+  documentoId: number;
+  objectKey: string;
+  uploadUrl: string;
+  expiresInSeconds: number;
+};
+
 export function UploadDocumento() {
   const [loading, setLoading] = useState(false);
+  const [loadingConsent, setLoadingConsent] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [tiposDocumento, setTiposDocumento] = useState<string[]>([]);
+  const [lgpd, setLgpd] = useState<LgpdTermoAtualResponse | null>(null);
+  const [consentChecked, setConsentChecked] = useState(false);
 
   const [tipoReferencia, setTipoReferencia] = useState<TipoReferencia>("CONTRATADA");
   const [tipoDocumento, setTipoDocumento] = useState<string>("");
@@ -42,6 +63,7 @@ export function UploadDocumento() {
   useEffect(() => {
     loadFuncionarios();
     loadTiposDocumento();
+    loadLgpdTermo();
   }, []);
 
   const loadFuncionarios = async () => {
@@ -61,6 +83,42 @@ export function UploadDocumento() {
       setTipoDocumento((prev) => prev || tipos[0] || "");
     } catch (err: any) {
       console.error("Erro ao carregar tipos de documento:", err);
+    }
+  };
+
+  const loadLgpdTermo = async () => {
+    try {
+      const response = await api.get<LgpdTermoAtualResponse>("/api/lgpd/termo-atual");
+      setLgpd(response.data);
+    } catch (err: any) {
+      console.error("Erro ao carregar termo LGPD:", err);
+    }
+  };
+
+  const requiresLgpd = tipoReferencia === "FUNCIONARIO";
+  const isLgpdApproved = !requiresLgpd || !!lgpd?.valido;
+
+  const handleRegistrarConsentimento = async () => {
+    if (!lgpd) return;
+    if (!consentChecked) {
+      setError("Marque o aceite do termo LGPD antes de continuar.");
+      return;
+    }
+
+    setLoadingConsent(true);
+    setError("");
+    try {
+      await api.post("/api/lgpd/consentimento", {
+        versaoTermo: lgpd.versaoTermo,
+        hashTermo: lgpd.hashTermo,
+      });
+      setSuccess("Consentimento LGPD registrado com sucesso.");
+      setConsentChecked(false);
+      await loadLgpdTermo();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Erro ao registrar consentimento LGPD");
+    } finally {
+      setLoadingConsent(false);
     }
   };
 
@@ -88,21 +146,43 @@ export function UploadDocumento() {
       return;
     }
 
-    try {
-      const formData = new FormData();
-      formData.append("arquivo", arquivo);
-      formData.append("tipoDocumento", tipoDocumento);
-      formData.append("tipoReferenciaDocumento", tipoReferencia);
+    if (!isLgpdApproved) {
+      setError("Registre o consentimento LGPD antes de enviar documentos pessoais.");
+      setLoading(false);
+      return;
+    }
 
-      if (tipoReferencia === "FUNCIONARIO" && funcionarioId) {
-        formData.append("funcionarioId", funcionarioId.toString());
+    try {
+      const solicitarUploadPayload = {
+        nomeArquivo: arquivo.name,
+        contentType: arquivo.type || "application/octet-stream",
+        tamanhoBytes: arquivo.size,
+        tipoDocumento,
+        tipoReferencia,
+        funcionarioId: tipoReferencia === "FUNCIONARIO" ? Number(funcionarioId) : null,
+        contratadaId: null,
+      };
+
+      const solicitarUploadResponse = await api.post<SolicitarUploadResponse>(
+        "/api/documentos/solicitar-upload",
+        solicitarUploadPayload
+      );
+
+      const { documentoId, uploadUrl } = solicitarUploadResponse.data;
+
+      const putResponse = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": arquivo.type || "application/octet-stream",
+        },
+        body: arquivo,
+      });
+
+      if (!putResponse.ok) {
+        throw new Error(`Falha no upload direto ao storage (HTTP ${putResponse.status})`);
       }
 
-      await api.post("/api/documentos/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      await api.post(`/api/documentos/${documentoId}/confirmar-upload`);
 
       setSuccess("Documento enviado com sucesso!");
       setArquivo(null);
@@ -111,7 +191,7 @@ export function UploadDocumento() {
       const fileInput = document.getElementById("file-input") as HTMLInputElement;
       if (fileInput) fileInput.value = "";
     } catch (err: any) {
-      setError(err.response?.data?.message || "Erro ao enviar documento");
+      setError(err.response?.data?.message || err.message || "Erro ao enviar documento");
     } finally {
       setLoading(false);
     }
@@ -184,6 +264,61 @@ export function UploadDocumento() {
                 </TextField>
               )}
 
+              {requiresLgpd && lgpd && !lgpd.valido && (
+                <Card variant="outlined" sx={{ backgroundColor: "#fffdf6" }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Consentimento LGPD obrigatório
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Para enviar documentos pessoais de funcionários, é necessário registrar o
+                      aceite do termo vigente.
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ mb: 2 }}>
+                      Versão do termo: {lgpd.versaoTermo}
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    <Paper
+                      variant="outlined"
+                      sx={{ p: 2, maxHeight: 220, overflow: "auto", backgroundColor: "#fafafa" }}
+                    >
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                        {lgpd.textoTermo}
+                      </Typography>
+                    </Paper>
+                    <FormControlLabel
+                      sx={{ mt: 2 }}
+                      control={
+                        <Checkbox
+                          checked={consentChecked}
+                          onChange={(e) => setConsentChecked(e.target.checked)}
+                        />
+                      }
+                      label="Li e concordo com o tratamento dos dados pessoais conforme o termo acima."
+                    />
+                    <Box sx={{ mt: 1 }}>
+                      <Button
+                        variant="contained"
+                        onClick={handleRegistrarConsentimento}
+                        disabled={loadingConsent || !consentChecked}
+                      >
+                        {loadingConsent ? "Registrando aceite..." : "Registrar aceite LGPD"}
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
+
+              {requiresLgpd && lgpd?.valido && (
+                <Alert severity="success">
+                  Consentimento LGPD válido registrado em{" "}
+                  {lgpd.timestampConsentimento
+                    ? new Date(lgpd.timestampConsentimento).toLocaleString("pt-BR")
+                    : "data indisponível"}
+                  .
+                </Alert>
+              )}
+
               <TextField
                 select
                 label="Tipo do Documento"
@@ -226,7 +361,7 @@ export function UploadDocumento() {
                 type="submit"
                 variant="contained"
                 size="large"
-                disabled={loading}
+                disabled={loading || !isLgpdApproved}
                 sx={{ backgroundColor: "#1b6c72ff" }}
               >
                 {loading ? (

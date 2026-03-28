@@ -2,6 +2,7 @@ package com.example.portalpartners.controller;
 
 import com.example.portalpartners.dto.*;
 import com.example.portalpartners.service.AuthService;
+import jakarta.validation.Valid;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,17 @@ public class AuthController {
 
     @PostMapping("/reset-password")
         public ResponseEntity<String> resetPassword(@RequestBody ResetPasswordRequest request) {
-            return ResponseEntity.ok(authService.resetPassword(request));
+            try {
+                return ResponseEntity.ok(authService.resetPassword(request));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(e.getMessage());
+            }
         }
+
+    @PostMapping("/change-password-first-access")
+    public ResponseEntity<String> changePasswordFirstAccess(
+            @Valid @RequestBody FirstAccessPasswordChangeRequest request
+    ) {
+        return ResponseEntity.ok(authService.changePasswordFirstAccess(request));
+    }
 }

@@ -2,6 +2,7 @@ import { Box, List, ListItemButton, ListItemText, Divider, Typography } from "@m
 import SpaceDashboardOutlinedIcon from "@mui/icons-material/SpaceDashboardOutlined";
 import PostAddOutlinedIcon from "@mui/icons-material/PostAddOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import HistoryEduOutlinedIcon from "@mui/icons-material/HistoryEduOutlined";
 import BusinessIcon from "@mui/icons-material/Business";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -123,6 +124,22 @@ export function Sidebar() {
         {user?.role === "CONTRATANTE" && (
           <>
             <ListItemButton
+              onClick={() => navigate("/contratante/usuarios")}
+              selected={isActive("/contratante/usuarios")}
+              sx={{
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                },
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                },
+              }}
+            >
+              <PeopleIcon sx={{ marginRight: 2 }} />
+              <ListItemText primary="Usuários" />
+            </ListItemButton>
+
+            <ListItemButton
               onClick={() => navigate("/contratadas")}
               selected={isActive("/contratadas")}
               sx={{
@@ -188,6 +205,22 @@ export function Sidebar() {
             >
               <PeopleIcon sx={{ marginRight: 2 }} />
               <ListItemText primary="Funcionários" />
+            </ListItemButton>
+
+            <ListItemButton
+              onClick={() => navigate("/admin/audit-log")}
+              selected={isActive("/admin/audit-log")}
+              sx={{
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                },
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                },
+              }}
+            >
+              <HistoryEduOutlinedIcon sx={{ marginRight: 2 }} />
+              <ListItemText primary="Logs de Auditoria" />
             </ListItemButton>
 
             <ListItemButton

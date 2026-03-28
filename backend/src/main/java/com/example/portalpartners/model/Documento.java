@@ -1,5 +1,6 @@
 package com.example.portalpartners.model;
 
+import com.example.portalpartners.crypto.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -18,14 +19,38 @@ public class Documento {
     @Column(nullable = false)
     private TipoDocumento tipoDocumento;
 
+    /** Campo legado — mantido para retrocompatibilidade com uploads anteriores. */
     @Column(nullable = false)
     private String nomeArquivo;
 
+    /**
+     * Nome original do arquivo cifrado com AES-256-GCM.
+     * Usado pela arquitetura Zero-Copy (novos uploads via presigned URL).
+     * Nunca armazenado em plaintext para proteger dados pessoais identificaveis
+     * (ex: "RG_joao_silva.pdf").
+     */
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "nome_arquivo_original")
+    private String nomeArquivoOriginal;
+
+    /** Path legado no MinIO (upload via backend). Mantido para retrocompat. */
     @Column(name = "arquivo_path")
     private String arquivoPath;
 
+    /**
+     * Object key opaco no MinIO para novos uploads (UUID v4).
+     * Sem qualquer relacao semantica com o nome original do arquivo.
+     * Um atacante com acesso ao banco ve apenas um UUID, sem informacao
+     * de conteudo ou titular do documento.
+     */
+    @Column(name = "object_key")
+    private String objectKey;
+
     @Column(name = "content_type")
     private String contentType;
+
+    @Column(name = "tamanho_bytes")
+    private Long tamanhoBytes;
 
     @Column(nullable = false)
     private LocalDateTime dataPostagem;
@@ -46,69 +71,38 @@ public class Documento {
         }
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public TipoDocumento getTipoDocumento() { return tipoDocumento; }
+    public void setTipoDocumento(TipoDocumento tipoDocumento) { this.tipoDocumento = tipoDocumento; }
 
-    public TipoDocumento getTipoDocumento() {
-        return tipoDocumento;
-    }
+    public String getNomeArquivo() { return nomeArquivo; }
+    public void setNomeArquivo(String nomeArquivo) { this.nomeArquivo = nomeArquivo; }
 
-    public void setTipoDocumento(TipoDocumento tipoDocumento) {
-        this.tipoDocumento = tipoDocumento;
-    }
+    public String getNomeArquivoOriginal() { return nomeArquivoOriginal; }
+    public void setNomeArquivoOriginal(String nomeArquivoOriginal) { this.nomeArquivoOriginal = nomeArquivoOriginal; }
 
-    public String getNomeArquivo() {
-        return nomeArquivo;
-    }
+    public String getArquivoPath() { return arquivoPath; }
+    public void setArquivoPath(String arquivoPath) { this.arquivoPath = arquivoPath; }
 
-    public void setNomeArquivo(String nomeArquivo) {
-        this.nomeArquivo = nomeArquivo;
-    }
+    public String getObjectKey() { return objectKey; }
+    public void setObjectKey(String objectKey) { this.objectKey = objectKey; }
 
-    public String getArquivoPath() {
-        return arquivoPath;
-    }
+    public String getContentType() { return contentType; }
+    public void setContentType(String contentType) { this.contentType = contentType; }
 
-    public void setArquivoPath(String arquivoPath) {
-        this.arquivoPath = arquivoPath;
-    }
+    public Long getTamanhoBytes() { return tamanhoBytes; }
+    public void setTamanhoBytes(Long tamanhoBytes) { this.tamanhoBytes = tamanhoBytes; }
 
-    public String getContentType() {
-        return contentType;
-    }
+    public StatusDocumento getStatusDocumento() { return statusDocumento; }
+    public void setStatusDocumento(StatusDocumento statusDocumento) { this.statusDocumento = statusDocumento; }
 
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
+    public LocalDateTime getDataDownloadContratante() { return dataDownloadContratante; }
+    public void setDataDownloadContratante(LocalDateTime dataDownloadContratante) { this.dataDownloadContratante = dataDownloadContratante; }
 
-    public StatusDocumento getStatusDocumento() {
-        return statusDocumento;
-    }
-
-    public void setStatusDocumento(StatusDocumento statusDocumento) {
-        this.statusDocumento = statusDocumento;
-    }
-
-    public LocalDateTime getDataDownloadContratante() {
-        return dataDownloadContratante;
-    }
-
-    public void setDataDownloadContratante(LocalDateTime dataDownloadContratante) {
-        this.dataDownloadContratante = dataDownloadContratante;
-    }
-
-    public LocalDateTime getDataStatusAtualizado() {
-        return dataStatusAtualizado;
-    }
-
-    public void setDataStatusAtualizado(LocalDateTime dataStatusAtualizado) {
-        this.dataStatusAtualizado = dataStatusAtualizado;
-    }
+    public LocalDateTime getDataStatusAtualizado() { return dataStatusAtualizado; }
+    public void setDataStatusAtualizado(LocalDateTime dataStatusAtualizado) { this.dataStatusAtualizado = dataStatusAtualizado; }
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contratada_id")
@@ -118,21 +112,9 @@ public class Documento {
     @JoinColumn(name = "funcionario_id")
     private Funcionario funcionario;
 
-    public Contratada getContratada() {
-        return contratada;
-    }
+    public Contratada getContratada() { return contratada; }
+    public void setContratada(Contratada contratada) { this.contratada = contratada; }
 
-    public void setContratada(Contratada contratada) {
-        this.contratada = contratada;
-    }
-
-    public Funcionario getFuncionario() {
-        return funcionario;
-    }
-
-    public void setFuncionario(Funcionario funcionario) {
-        this.funcionario = funcionario;
-    }
+    public Funcionario getFuncionario() { return funcionario; }
+    public void setFuncionario(Funcionario funcionario) { this.funcionario = funcionario; }
 }
-
-

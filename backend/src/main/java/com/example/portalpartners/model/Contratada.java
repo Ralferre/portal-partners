@@ -27,18 +27,21 @@ public class Contratada {
     @Column(nullable = false)
     private String numeroPedido;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.REMOVE, orphanRemoval = true)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
+
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<Usuario> usuarios = new ArrayList<>();
 
     @ManyToOne
     @JoinColumn(name = "contratante_id")
     private Contratante contratante;
 
-    @OneToMany(mappedBy = "contratada")
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Contrato> contratos = new ArrayList<>();
 
-    @OneToMany(mappedBy = "contratada")
+    @OneToMany(mappedBy = "contratada", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Funcionario> funcionarios = new ArrayList<>();
 
 }

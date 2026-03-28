@@ -50,6 +50,13 @@ type DocumentosPage = {
   number: number;
 };
 
+type SolicitarDownloadResponse = {
+  downloadUrl: string;
+  nomeArquivo: string;
+  contentType: string;
+  expiresInSeconds: number;
+};
+
 export function Documentos() {
   const { user } = useAuth();
   const [documentos, setDocumentos] = useState<Documento[]>([]);
@@ -132,19 +139,18 @@ export function Documentos() {
   const handleDownload = async (doc: Documento) => {
     setError("");
     try {
-      const response = await api.get(`/api/documentos/${doc.id}/download`, {
-        responseType: "blob",
-      });
+      const response = await api.get<SolicitarDownloadResponse>(
+        `/api/documentos/${doc.id}/solicitar-download`
+      );
 
-      const blob = new Blob([response.data]);
-      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = doc.nomeArquivo || `documento-${doc.id}`;
+      a.href = response.data.downloadUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.download = response.data.nomeArquivo || doc.nomeArquivo || `documento-${doc.id}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
 
       // atualiza lista para refletir mudança de "novo" (download pela contratante)
       loadDocumentos(pageInfo.page);

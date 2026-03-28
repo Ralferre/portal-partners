@@ -6,8 +6,6 @@ import com.example.portalpartners.model.Contratada;
 import com.example.portalpartners.model.Contratante;
 import com.example.portalpartners.model.Role;
 import com.example.portalpartners.model.Usuario;
-import com.example.portalpartners.repository.ContratadaRepository;
-import com.example.portalpartners.repository.ContratanteRepository;
 import com.example.portalpartners.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -18,8 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UsuarioLogadoServiceImpl implements UsuarioLogadoService{
     private final UsuarioRepository usuarioRepository;
-    private final ContratanteRepository contratanteRepository;
-    private final ContratadaRepository contratadaRepository;
+    private final OrganizacaoAcessoService organizacaoAcessoService;
 
     @Override
     public Usuario getUsuario() {
@@ -46,8 +43,7 @@ public class UsuarioLogadoServiceImpl implements UsuarioLogadoService{
             throw new BusinessRulesException("Usuário não é CONTRATANTE");
         }
 
-        return contratanteRepository.findByUsuario(usuario)
-                .orElseThrow(() -> new ResourceNotFoundException("Contratante não encontrada"));
+        return organizacaoAcessoService.resolverContratante(usuario);
     }
 
     @Override
@@ -59,8 +55,7 @@ public class UsuarioLogadoServiceImpl implements UsuarioLogadoService{
             throw new BusinessRulesException("Usuário não é CONTRATADA");
         }
 
-        return contratadaRepository.findByUsuario(usuario)
-                .orElseThrow(() -> new BusinessRulesException("Contratada não encontrada"));
+        return organizacaoAcessoService.resolverContratada(usuario);
     }
 
     @Override

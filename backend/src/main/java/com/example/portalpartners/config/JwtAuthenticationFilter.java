@@ -1,6 +1,7 @@
 package com.example.portalpartners.config;
 
 import com.example.portalpartners.service.JwtService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,7 +37,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String token = authHeader.substring(7);
-        String email = jwtService.extractUsername(token);
+        String email;
+        try {
+            email = jwtService.extractUsername(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            // Token invalido/expirado nao deve derrubar a requisicao.
+            // Para endpoints publicos (ex.: /api/auth/login), segue sem autenticacao.
+            SecurityContextHolder.clearContext();
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 

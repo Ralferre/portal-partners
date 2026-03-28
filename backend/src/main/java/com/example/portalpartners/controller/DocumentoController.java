@@ -1,13 +1,12 @@
 package com.example.portalpartners.controller;
 
-import com.example.portalpartners.dto.CreateDocumentoRequest;
-import com.example.portalpartners.dto.DocumentoResponse;
-import com.example.portalpartners.dto.UpdateRequest;
+import com.example.portalpartners.dto.*;
 import com.example.portalpartners.model.Documento;
 import com.example.portalpartners.model.StatusDocumento;
 import com.example.portalpartners.model.TipoDocumento;
 import com.example.portalpartners.repository.DocumentoRepository;
 import com.example.portalpartners.service.DocumentoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,94 +23,57 @@ import java.util.List;
 @RequestMapping("/api/documentos")
 @RequiredArgsConstructor
 public class DocumentoController {
+
     private final DocumentoRepository documentoRepository;
     private final DocumentoService documentoService;
 
-    private DocumentoResponse toResponse(Documento d) {
-        DocumentoResponse dto = new DocumentoResponse();
-        dto.setId(d.getId());
-        dto.setTipoDocumento(d.getTipoDocumento());
-        dto.setNomeArquivo(d.getNomeArquivo());
-        dto.setStatusDocumento(d.getStatusDocumento());
-        dto.setDataPostagem(d.getDataPostagem());
+    // =========================================================================
+    // ARQUITETURA ZERO-COPY — Presigned URLs
+    // =========================================================================
 
-        dto.setContratadaNome(
-                d.getContratada() != null ? d.getContratada().getNome() : null
-        );
-
-        dto.setFuncionarioNome(
-                d.getFuncionario() != null ? d.getFuncionario().getNomeCompleto() : null
-        );
-
-        return dto;
+    /**
+     * Solicita presigned PUT URL para upload direto do cliente ao MinIO.
+     * Os bytes do documento NUNCA passam pelo backend.
+     * Valida LGPD antes de gerar a URL.
+     */
+    @PostMapping("/solicitar-upload")
+    @PreAuthorize("hasAuthority('ROLE_CONTRATADA')")
+    public ResponseEntity<SolicitarUploadResponse> solicitarUpload(
+            @Valid @RequestBody SolicitarUploadRequest request) {
+        return ResponseEntity.ok(documentoService.solicitarUpload(request));
     }
 
-//
+    /**
+     * Confirma a conclusao do upload direto ao MinIO.
+     * Chamado pelo frontend apos o PUT bem-sucedido na presigned URL.
+     */
+    @PostMapping("/{documentoId}/confirmar-upload")
+    @PreAuthorize("hasAuthority('ROLE_CONTRATADA')")
+    public ResponseEntity<DocumentoResponse> confirmarUpload(@PathVariable Long documentoId) {
+        return ResponseEntity.ok(documentoService.confirmarUpload(documentoId));
+    }
 
-//    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
-//    @GetMapping("/ultimos")
-//    public List<DocumentoResponse> ultimos10() {
-//        return documentoRepository.findTop10ByOrderByDataPostagemDesc()
-//                .stream()
-//                .map(this::toResponse)
-//                .toList();
-//    }
-//
-//    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATADA', 'ROLE_ADMIN')")
-//    @PostMapping
-//    public ResponseEntity<Documento> cadastrar(@RequestBody Documento documento) {
-//        return ResponseEntity.ok(documentoRepository.save(documento));
-//    }
+    /**
+     * Solicita presigned GET URL para download direto do cliente ao MinIO.
+     * Os bytes do documento NUNCA passam pelo backend.
+     * Gera evento de auditoria assincrono.
+     */
+    @GetMapping("/{id}/solicitar-download")
+    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
+    public ResponseEntity<SolicitarDownloadResponse> solicitarDownload(@PathVariable Long id) {
+        return ResponseEntity.ok(documentoService.solicitarDownload(id));
+    }
+
+    // =========================================================================
+    // ENDPOINTS LEGADOS (retrocompatibilidade)
+    // =========================================================================
 
     @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
     @PostMapping("/upload")
-    public ResponseEntity<DocumentoResponse> uploadDocumento(@ModelAttribute CreateDocumentoRequest dto) {
-//        DocumentoResponse response = DocumentoResponse.fromEntity(dto);
+    public ResponseEntity<DocumentoResponse> uploadDocumento(
+            @ModelAttribute CreateDocumentoRequest dto) {
         DocumentoResponse response = documentoService.uploadDocumento(dto);
-        return ResponseEntity.ok(response);
-    }
-
-//    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
-//    @GetMapping("/contratada")
-//    public List<DocumentoResponse> listarPorContratada(@RequestParam String nome) {
-//        return documentoService.findByContratadaNome(nome)
-//                .stream()
-//                .map(this::toResponse)
-//                .toList();
-//    }
-
-//    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
-//    @GetMapping("/funcionario/nome/{funcionarioNome}")
-//    public Page<DocumentoResponse> listarPorFuncionario(
-//            @PathVariable String nome,
-//            @RequestParam(defaultValue = "0") int page,
-//            @RequestParam(defaultValue = "20") int size) {
-//        Page<Documento> pageEntity =
-//                documentoService.findByFuncionarioNomeContainingIgnoreCase(
-//                        nome, PageRequest.of(page, size));
-//
-//        return pageEntity.map(this::toResponse);
-//    }
-
-//    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
-//    @GetMapping("/contratada/{contratadaNome}/tipo/{tipo}")
-//    public List<DocumentoResponse> filtrarPorTipoEmpresa(
-//            @PathVariable String contratadaNome,
-//            @PathVariable TipoDocumento tipo) {
-//
-//        return documentoService.findByContratadaNomeAndTipo(contratadaNome, tipo)
-//                .stream()
-//                .map(this::toResponse)
-//                .toList();
-//    }
-
-    @PutMapping("/status/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_ADMIN')")
-    public ResponseEntity<DocumentoResponse> atualizarStatus(
-            @PathVariable Long id,
-            @RequestBody UpdateRequest request) {
-        DocumentoResponse response = documentoService.updateStatus(id, request.statusDocumento());
         return ResponseEntity.ok(response);
     }
 
@@ -121,7 +83,8 @@ public class DocumentoController {
         DocumentoService.DownloadPayload payload = documentoService.download(id);
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.filename() + "\"");
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"" + payload.filename() + "\"");
 
         MediaType mediaType;
         try {
@@ -134,6 +97,18 @@ public class DocumentoController {
                 .headers(headers)
                 .contentType(mediaType)
                 .body(payload.resource());
+    }
+
+    // =========================================================================
+    // STATUS, FILTROS, CONTAGEM, TIPOS, EXCLUSAO
+    // =========================================================================
+
+    @PutMapping("/status/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_ADMIN')")
+    public ResponseEntity<DocumentoResponse> atualizarStatus(
+            @PathVariable Long id,
+            @RequestBody UpdateRequest request) {
+        return ResponseEntity.ok(documentoService.updateStatus(id, request.statusDocumento()));
     }
 
     @GetMapping("/novos/count")
@@ -155,16 +130,11 @@ public class DocumentoController {
             @RequestParam(required = false) String funcionario,
             @RequestParam(required = false) TipoDocumento tipo,
             @RequestParam(required = false) StatusDocumento status,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return documentoService.filtrar(
-                contratada,
-                funcionario,
-                tipo,
-                status,
-                PageRequest.of(page, size)
-        );
+        return documentoService.filtrar(contratada, funcionario, tipo, status,
+                PageRequest.of(page, size));
     }
 
     @PreAuthorize("hasAnyAuthority('ROLE_CONTRATANTE', 'ROLE_CONTRATADA', 'ROLE_ADMIN')")
@@ -172,5 +142,20 @@ public class DocumentoController {
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
         documentoService.deletarDocumento(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // mapper auxiliar para endpoints legados
+    private DocumentoResponse toResponse(Documento d) {
+        DocumentoResponse dto = new DocumentoResponse();
+        dto.setId(d.getId());
+        dto.setTipoDocumento(d.getTipoDocumento());
+        dto.setNomeArquivo(d.getNomeArquivoOriginal() != null
+                ? d.getNomeArquivoOriginal() : d.getNomeArquivo());
+        dto.setStatusDocumento(d.getStatusDocumento());
+        dto.setDataPostagem(d.getDataPostagem());
+        dto.setContratadaNome(d.getContratada() != null ? d.getContratada().getNome() : null);
+        dto.setFuncionarioNome(
+                d.getFuncionario() != null ? d.getFuncionario().getNomeCompleto() : null);
+        return dto;
     }
 }
