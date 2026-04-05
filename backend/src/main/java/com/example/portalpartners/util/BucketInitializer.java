@@ -1,22 +1,27 @@
 package com.example.portalpartners.util;
 
+import com.example.portalpartners.service.MinioService;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class BucketInitializer {
 
     private final MinioClient minioClient;
+    private final MinioService minioService;
 
     @Value("${minio.bucket-name}")
     private String bucketName;
 
-    public BucketInitializer(MinioClient minioClient) {
+    public BucketInitializer(MinioClient minioClient, MinioService minioService) {
         this.minioClient = minioClient;
+        this.minioService = minioService;
     }
 
     @PostConstruct
@@ -31,13 +36,17 @@ public class BucketInitializer {
                 minioClient.makeBucket(
                         MakeBucketArgs.builder().bucket(bucketName).build()
                 );
-                System.out.println("Bucket created: " + bucketName);
+                log.info("Bucket criado: {}", bucketName);
             } else {
-                System.out.println("Bucket already exists: " + bucketName);
+                log.info("Bucket ja existe: {}", bucketName);
             }
 
+            // Configura e valida SSE no bucket. Com modo estrito habilitado,
+            // a aplicacao falha na inicializacao se nao validar criptografia.
+            minioService.configurarCriptografiaBucket();
+
         } catch (Exception ex) {
-            throw new RuntimeException("Failed to initialize MinIO bucket", ex);
+            throw new RuntimeException("Falha ao inicializar bucket MinIO", ex);
         }
     }
 }

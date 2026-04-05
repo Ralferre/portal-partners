@@ -7,20 +7,18 @@ import com.example.portalpartners.model.Usuario;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface ContratadaRepository extends JpaRepository<Contratada, Long> {
-//    boolean existsByCnpj(String cnpj);
-
     boolean existsByUsuario(Usuario usuario);
 
     Optional<Contratada> findByNome(String nome);
 
     Optional<Contratada> findByNomeIgnoreCase(String contratada);
-
-//    boolean existsByEmail(String email);
 
     Optional<Contratada> findByUsuarioId(Long usuarioId);
 
@@ -30,10 +28,6 @@ public interface ContratadaRepository extends JpaRepository<Contratada, Long> {
     );
 
     Optional<Contratada> findByUsuario(Usuario usuario);
-
-//    ContratadaResponse findByNomeContainingIgnoreCase(
-//            String nome
-//    );
 
     Optional<Contratada> findByContratanteAndNomeContainingIgnoreCase(
             Contratante contratante,
@@ -46,5 +40,13 @@ public interface ContratadaRepository extends JpaRepository<Contratada, Long> {
             Contratante contratante,
             String nome
     );
+
+    @Query("""
+            select c
+            from Contratada c
+            where lower(c.usuario.email) like lower(concat('%', :domainSuffix))
+            order by c.id asc
+            """)
+    List<Contratada> findAllByUsuarioEmailDomain(@Param("domainSuffix") String domainSuffix);
 
 }

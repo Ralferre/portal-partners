@@ -11,8 +11,21 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FuncionarioRepository extends JpaRepository<Funcionario, Long> {
+
+    /** @deprecated Usar existsByCpfHashAndContratada para dados criptografados. */
+    @Deprecated
     boolean existsByCpf(String cpf);
+
+    /** @deprecated Usar existsByCpfHashAndContratada para dados criptografados. */
+    @Deprecated
     boolean existsByCpfAndContratada(String cpf, Contratada contratada);
+
+    /**
+     * Verifica existencia via HMAC-SHA256 do CPF.
+     * Deterministico: o mesmo CPF normalizado sempre gera o mesmo hash.
+     */
+    boolean existsByCpfHashAndContratada(String cpfHash, Contratada contratada);
+
     Optional<Funcionario> findByNomeCompleto(String nomeCompleto);
 
     Optional<Funcionario> findByNomeCompletoIgnoreCase(String nomeCompleto);

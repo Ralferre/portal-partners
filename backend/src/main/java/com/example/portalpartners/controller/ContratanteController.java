@@ -2,13 +2,20 @@ package com.example.portalpartners.controller;
 
 import com.example.portalpartners.dto.ContratadaResponse;
 import com.example.portalpartners.dto.CreateContratadaRequest;
+import com.example.portalpartners.dto.CreateUsuarioContratanteRequest;
+import com.example.portalpartners.dto.UpdateContratadaRequest;
+import com.example.portalpartners.dto.UsuarioDTO;
 import com.example.portalpartners.service.ContratadaService;
 import com.example.portalpartners.service.ContratanteService;
+import com.example.portalpartners.service.ContratanteUsuarioService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 
 @RestController
@@ -18,43 +25,13 @@ import org.springframework.web.bind.annotation.*;
 public class ContratanteController {
     private final ContratanteService contratanteService;
     private final ContratadaService contratadaService;
-
-//    @GetMapping("/contratantes")
-//    public Page<ContratanteResponse> listar(
-//            @RequestParam(defaultValue = "0") int page
-//    ) {
-//        return contratanteService.listarPaginado(page);
-//    }
-
-//    @Transactional
-//    @PostMapping("/contratante")
-//    public ContratanteResponse criar(
-//            @RequestBody CreateContratanteRequest request
-//    ) {
-//        Usuario usuario = usuarioLogadoService.getUsuario();
-//        if (usuario.getRole() == Role.CONTRATANTE || usuario.getRole() == Role.CONTRATADA) {
-//            throw new RuntimeException("Usuário sem permissão");
-//        } else {
-//            return contratanteService.criar(request);
-//        }
-//    }
-
-//    @Transactional
-//    @DeleteMapping("/contratante/{nome}")
-//    public void remover(@PathVariable String nome) {
-//        Usuario usuario = usuarioLogadoService.getUsuario();
-//        if (usuario.getRole() != Role.CONTRATANTE) {
-//            throw new BusinessRulersException("Usuário sem permissão");
-//        }
-//
-//        contratanteService.removerPorNome(nome);
-//    }
+    private final ContratanteUsuarioService contratanteUsuarioService;
 
     @Transactional
     @PreAuthorize("hasRole('CONTRATANTE')")
     @PostMapping("/contratada")
     public ContratadaResponse criar(
-            @RequestBody CreateContratadaRequest request
+            @Valid @RequestBody CreateContratadaRequest request
     ) {
         return contratadaService.criar(request);
     }
@@ -78,5 +55,28 @@ public class ContratanteController {
     @PreAuthorize("hasRole('CONTRATANTE')")
     public void deletarContratada(@PathVariable Long id) {
         contratadaService.deletarContratada(id);
+    }
+
+    @PutMapping("/contratadas/{id}")
+    @PreAuthorize("hasRole('CONTRATANTE')")
+    public ContratadaResponse atualizarContratada(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateContratadaRequest request
+    ) {
+        return contratadaService.atualizar(id, request);
+    }
+
+    @GetMapping("/usuarios")
+    @PreAuthorize("hasRole('CONTRATANTE')")
+    public List<UsuarioDTO> listarUsuarios() {
+        return contratanteUsuarioService.listarUsuariosDaContratanteLogada();
+    }
+
+    @PostMapping("/usuarios")
+    @PreAuthorize("hasRole('CONTRATANTE')")
+    public UsuarioDTO criarUsuario(
+            @Valid @RequestBody CreateUsuarioContratanteRequest request
+    ) {
+        return contratanteUsuarioService.criarUsuarioParaContratanteLogada(request);
     }
 }

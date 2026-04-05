@@ -1,5 +1,7 @@
 package com.example.portalpartners.service;
 
+import com.example.portalpartners.audit.Auditavel;
+import com.example.portalpartners.crypto.FieldEncryptionService;
 import com.example.portalpartners.dto.CreateFuncionarioRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
 import com.example.portalpartners.exceptions.ConflictException;
@@ -18,30 +20,36 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class FuncionarioService {
+
     private final FuncionarioRepository funcionarioRepository;
     private final UsuarioLogadoService usuarioLogadoService;
+    private final FieldEncryptionService fieldEncryptionService;
 
+    @Auditavel(acao = "FUNCIONARIO_CRIADO", entidade = "Funcionario")
     @Transactional
     public FuncionarioResponse criar(CreateFuncionarioRequest request) {
 
         Contratada contratada = usuarioLogadoService.getContratadaLogada();
-
         String cpfNormalizado = normalizarCpf(request.cpf());
 
-        if (funcionarioRepository.existsByCpfAndContratada(cpfNormalizado, contratada)) {
+        // Unicidade via cpfHash (HMAC deterministico — nao expoe o CPF real)
+        String cpfHash = fieldEncryptionService.hash(cpfNormalizado);
+        if (funcionarioRepository.existsByCpfHashAndContratada(cpfHash, contratada)) {
             throw new ConflictException("Funcionário com este CPF já existe nesta contratada");
         }
+
         Funcionario funcionario = Funcionario.builder()
                 .nomeCompleto(request.nomeCompleto())
-                .cpf(cpfNormalizado)
+                .cpf(cpfNormalizado)        // cifrado pelo EncryptedStringConverter
+                .cpfHash(cpfHash)           // HMAC para busca/unicidade
                 .contratada(contratada)
                 .build();
 
         funcionarioRepository.save(funcionario);
-
         return FuncionarioResponse.fromEntity(funcionario);
     }
 
@@ -74,7 +82,6 @@ public class FuncionarioService {
 
     public List<FuncionarioResponse> findByContratada(String nome) {
         Contratada contratada = usuarioLogadoService.getContratadaLogada();
-
         return funcionarioRepository.findByContratada(contratada);
     }
 
@@ -94,9 +101,10 @@ public class FuncionarioService {
         if (funcionario == null) {
             throw new ResourceNotFoundException("Funcionário não encontrado");
         }
-    return FuncionarioResponse.fromEntity(funcionario);
+        return FuncionarioResponse.fromEntity(funcionario);
     }
 
+    @Auditavel(acao = "FUNCIONARIO_EXCLUIDO", entidade = "Funcionario")
     @Transactional
     public void deletarFuncionario(Long id) {
 
@@ -121,7 +129,8 @@ public class FuncionarioService {
 
         if (usuario.getRole() == Role.CONTRATANTE) {
             Contratante contratanteLogado = usuarioLogadoService.getContratanteLogada();
-            if (!funcionario.getContratada().getContratante().getId().equals(contratanteLogado.getId())) {
+            if (!funcionario.getContratada().getContratante().getId()
+                    .equals(contratanteLogado.getId())) {
                 throw new ForbiddenException("Você não tem permissão");
             }
             funcionarioRepository.delete(funcionario);

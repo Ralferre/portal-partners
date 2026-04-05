@@ -4,9 +4,12 @@ import com.example.portalpartners.dto.ContratanteResponse;
 import com.example.portalpartners.dto.ContratadaResponse;
 import com.example.portalpartners.dto.CreateContratanteRequest;
 import com.example.portalpartners.dto.FuncionarioResponse;
+import com.example.portalpartners.dto.UpdateContratanteRequest;
+import com.example.portalpartners.dto.UpdateContratadaRequest;
 import com.example.portalpartners.service.ContratadaService;
 import com.example.portalpartners.service.ContratanteService;
 import com.example.portalpartners.service.FuncionarioService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,9 +53,25 @@ public class AdminController {
 
     @PostMapping("/contratante")
     public ContratanteResponse criar(
-            @RequestBody CreateContratanteRequest request
+            @Valid @RequestBody CreateContratanteRequest request
     ) {
         return contratanteService.criar(request);
+    }
+
+    @PutMapping("/contratantes/{id}")
+    public ContratanteResponse atualizarContratante(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateContratanteRequest request
+    ) {
+        return contratanteService.atualizar(id, request);
+    }
+
+    @PutMapping("/contratadas/{id}")
+    public ContratadaResponse atualizarContratada(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateContratadaRequest request
+    ) {
+        return contratadaService.atualizar(id, request);
     }
 
     @DeleteMapping("/contratante/{nome}")

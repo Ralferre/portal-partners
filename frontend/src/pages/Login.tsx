@@ -9,11 +9,12 @@ import { JSX, useState } from "react";
 import { isValidEmail } from "../utils/validators";
 import { Auth } from "./Auth";
 import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export function Login(): JSX.Element {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,8 +42,11 @@ export function Login(): JSX.Element {
 
     try {
       setLoading(true);
-      await login({ email, senha: password });
-      navigate("/dashboard", { replace: true });
+      const authUser = await login({ email, senha: password });
+      navigate(
+        authUser.mustChangePassword ? "/primeiro-acesso/alterar-senha" : "/dashboard",
+        { replace: true }
+      );
     } catch (err: any) {
       const message = err?.response?.data?.message;
       setSubmitError(message || "Falha ao autenticar");
@@ -137,6 +141,12 @@ export function Login(): JSX.Element {
             {submitError ? (
               <Typography color="error" mt={1}>
                 {submitError}
+              </Typography>
+            ) : null}
+
+            {location.state?.message ? (
+              <Typography color="success.main" mt={1}>
+                {String(location.state.message)}
               </Typography>
             ) : null}
 

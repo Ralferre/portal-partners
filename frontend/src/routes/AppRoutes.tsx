@@ -1,14 +1,18 @@
 import { BrowserRouter, Route, Navigate, Routes } from "react-router-dom";
 import { Login } from "../pages/Login";
 import { ForgotPassword } from "../pages/ForgotPassword";
+import { ResetPassword } from "../pages/ResetPassword";
+import { FirstAccessChangePassword } from "../pages/FirstAccessChangePassword";
 import { Dashboard } from "../pages/Dashboard";
 import { Documentos } from "../pages/Documentos";
 import { UploadDocumento } from "../pages/UploadDocumento";
 import { Contratadas } from "../pages/Contratadas";
+import { UsuariosContratante } from "../pages/UsuariosContratante";
 import { Funcionarios } from "../pages/Funcionarios";
 import { AdminContratantes } from "../pages/admin/AdminContratantes";
 import { AdminContratadas } from "../pages/admin/AdminContratadas";
 import { AdminFuncionarios } from "../pages/admin/AdminFuncionarios";
+import { AdminAuditLogs } from "../pages/admin/AdminAuditLogs";
 import { Relatorios } from "../pages/Relatorios";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -18,6 +22,15 @@ export function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+          path="/primeiro-acesso/alterar-senha"
+          element={
+            <ProtectedRoute>
+              <FirstAccessChangePassword />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard"
           element={
@@ -51,6 +64,14 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="/contratante/usuarios"
+          element={
+            <ProtectedRoute>
+              <UsuariosContratante />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/funcionarios"
           element={
             <ProtectedRoute>
@@ -80,6 +101,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <AdminFuncionarios />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit-log"
+          element={
+            <ProtectedRoute>
+              <AdminAuditLogs />
             </ProtectedRoute>
           }
         />

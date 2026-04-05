@@ -23,6 +23,9 @@ public class Usuario implements UserDetails {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column
+    private String nome;
+
     @Column(nullable = false)
     private String senha;
 
@@ -35,6 +38,18 @@ public class Usuario implements UserDetails {
 
     @Column
     private Date resetTokenExpiration;
+
+    @Builder.Default
+    @Column
+    private Boolean mustChangePassword = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contratante_id")
+    private Contratante contratante;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contratada_id")
+    private Contratada contratada;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

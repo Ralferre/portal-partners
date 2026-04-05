@@ -19,14 +19,23 @@ public class Contratante {
     @Column(nullable = false)
     private String nome;
 
-    @OneToOne
+    @Column(unique = true)
+    private String cnpj;
+
+    @Column(unique = true)
+    private String dominioEmail;
+
+    @OneToOne(cascade = CascadeType.REMOVE, orphanRemoval = true)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
-    @OneToMany(mappedBy = "contratante")
+    @OneToMany(mappedBy = "contratante", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<Usuario> usuarios = new ArrayList<>();
+
+    @OneToMany(mappedBy = "contratante", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Contrato> contratos = new ArrayList<>();
 
-    @OneToMany(mappedBy = "contratante")
+    @OneToMany(mappedBy = "contratante", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Contratada> contratadas = new ArrayList<>();
 
 }

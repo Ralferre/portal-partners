@@ -4,6 +4,11 @@ import {
   Button,
   Card,
   CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
   Typography,
   Table,
   TableBody,
@@ -13,7 +18,10 @@ import {
   TableRow,
   Paper,
   Alert,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
+import { Edit as EditIcon, VisibilityOffOutlined, VisibilityOutlined } from "@mui/icons-material";
 import api from "../../services/api";
 import { AppLayout } from "../AppLayout";
 
@@ -23,6 +31,7 @@ type Contratada = {
   cnpj: string;
   numeroContrato: string;
   numeroPedido: string;
+  email: string;
   contratanteId?: number;
 };
 
@@ -55,6 +64,17 @@ export function AdminContratadas() {
     totalPages: 0,
   });
 
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editSenha, setEditSenha] = useState("");
+  const [editCnpj, setEditCnpj] = useState("");
+  const [editNumeroContrato, setEditNumeroContrato] = useState("");
+  const [editNumeroPedido, setEditNumeroPedido] = useState("");
+  const [showEditSenha, setShowEditSenha] = useState(false);
+  const [editing, setEditing] = useState(false);
+
   useEffect(() => {
     load(0);
   }, []);
@@ -72,6 +92,63 @@ export function AdminContratadas() {
       });
     } catch (err: any) {
       setError(err.response?.data?.message || "Erro ao carregar contratadas");
+    }
+  };
+
+  const handleOpenEdit = (c: Contratada) => {
+    setError("");
+    setEditId(c.id);
+    setEditNome(c.nome ?? "");
+    setEditEmail(c.email ?? "");
+    setEditSenha("");
+    setShowEditSenha(false);
+    setEditCnpj(c.cnpj ?? "");
+    setEditNumeroContrato(c.numeroContrato ?? "");
+    setEditNumeroPedido(c.numeroPedido ?? "");
+    setOpenEdit(true);
+  };
+
+  const handleEdit = async () => {
+    setError("");
+
+    if (editId == null) {
+      setError("Contratada inválida");
+      return;
+    }
+
+    const nome = editNome.trim();
+    const email = editEmail.trim();
+    const cnpj = editCnpj.trim();
+    const numeroContrato = editNumeroContrato.trim();
+    const numeroPedido = editNumeroPedido.trim();
+    const senha = editSenha;
+
+    if (!nome || !email || !cnpj || !numeroContrato || !numeroPedido) {
+      setError("Preencha nome, email, cnpj, nº contrato e nº pedido");
+      return;
+    }
+
+    if (senha && senha.length > 0 && senha.length < 8) {
+      setError("A senha deve ter no mínimo 8 caracteres");
+      return;
+    }
+
+    setEditing(true);
+    try {
+      await api.put(`/api/admin/contratadas/${editId}`, {
+        nome,
+        email,
+        senha: senha?.trim() ? senha : null,
+        cnpj,
+        numeroContrato,
+        numeroPedido,
+      });
+      setOpenEdit(false);
+      await load(pageInfo.page);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Erro ao atualizar contratada");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -98,6 +175,9 @@ export function AdminContratadas() {
                       <strong>Nome</strong>
                     </TableCell>
                     <TableCell>
+                      <strong>Email</strong>
+                    </TableCell>
+                    <TableCell>
                       <strong>CNPJ</strong>
                     </TableCell>
                     <TableCell>
@@ -109,12 +189,15 @@ export function AdminContratadas() {
                     <TableCell>
                       <strong>Contratante ID</strong>
                     </TableCell>
+                    <TableCell align="center">
+                      <strong>Ações</strong>
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} align="center">
+                      <TableCell colSpan={7} align="center">
                         Nenhuma contratada cadastrada
                       </TableCell>
                     </TableRow>
@@ -122,10 +205,16 @@ export function AdminContratadas() {
                     items.map((c) => (
                       <TableRow key={c.id}>
                         <TableCell>{c.nome}</TableCell>
+                        <TableCell>{c.email}</TableCell>
                         <TableCell>{formatCnpj(c.cnpj)}</TableCell>
                         <TableCell>{c.numeroContrato}</TableCell>
                         <TableCell>{c.numeroPedido}</TableCell>
                         <TableCell>{c.contratanteId ?? "-"}</TableCell>
+                        <TableCell align="center">
+                          <IconButton color="primary" onClick={() => handleOpenEdit(c)}>
+                            <EditIcon />
+                          </IconButton>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -156,6 +245,68 @@ export function AdminContratadas() {
             </Box>
           </CardContent>
         </Card>
+
+        <Dialog open={openEdit} onClose={() => setOpenEdit(false)} fullWidth maxWidth="sm">
+          <DialogTitle>Editar Contratada</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
+              <TextField
+                label="Nome"
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Senha (opcional)"
+                type={showEditSenha ? "text" : "password"}
+                value={editSenha}
+                onChange={(e) => setEditSenha(e.target.value)}
+                fullWidth
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton edge="end" onClick={() => setShowEditSenha((prev) => !prev)}>
+                        {showEditSenha ? <VisibilityOutlined /> : <VisibilityOffOutlined />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                label="CNPJ"
+                value={editCnpj}
+                onChange={(e) => setEditCnpj(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Nº Contrato"
+                value={editNumeroContrato}
+                onChange={(e) => setEditNumeroContrato(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Nº Pedido"
+                value={editNumeroPedido}
+                onChange={(e) => setEditNumeroPedido(e.target.value)}
+                fullWidth
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button variant="outlined" onClick={() => setOpenEdit(false)} disabled={editing}>
+              Cancelar
+            </Button>
+            <Button variant="contained" onClick={handleEdit} disabled={editing}>
+              {editing ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </AppLayout>
   );

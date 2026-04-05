@@ -17,10 +17,21 @@ public class MinioConfig {
     @Value("${minio.root-password}")
     private String rootPassword;
 
+    @Value("${minio.public-url:${minio.url}}")
+    private String minioPublicUrl;
+
     @Bean
     public MinioClient minioClient() {
         return MinioClient.builder()
                 .endpoint(minioUrl)
+                .credentials(rootUser, rootPassword)
+                .build();
+    }
+
+    @Bean("minioPresignClient")
+    public MinioClient minioPresignClient() {
+        return MinioClient.builder()
+                .endpoint(minioPublicUrl)
                 .credentials(rootUser, rootPassword)
                 .build();
     }

@@ -9,71 +9,107 @@ import com.example.portalpartners.repository.ContratanteRepository;
 import com.example.portalpartners.repository.UsuarioRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 
 @Component
+@ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 public class DataSeeder {
     private final UsuarioRepository usuarioRepository;
     private final ContratanteRepository contratanteRepository;
     private final ContratadaRepository contratadaRepository;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.seed.admin-password:}")
+    private String adminPassword;
+
+    @Value("${app.seed.contratante-password:}")
+    private String contratantePassword;
+
+    @Value("${app.seed.contratada-password:}")
+    private String contratadaPassword;
 
     @PostConstruct
+    @Transactional
     public void seed() {
-        // ADMIN
-        Usuario admin = usuarioRepository.findByEmail("admin@admin.com")
-                .orElseGet(() -> usuarioRepository.save(
-                        Usuario.builder()
-                                .email("admin@admin.com")
-                                .senha(passwordEncoder.encode("admin123"))
-                                .role(Role.ADMIN)
-                                .build()
-                ));
+        if (usuarioRepository.count() > 0 || contratanteRepository.count() > 0 || contratadaRepository.count() > 0) {
+            return;
+        }
 
-        // CONTRATANTE
-        Usuario uContratante = usuarioRepository.findByEmail("contratante@empresa.com")
-                .orElseGet(() -> usuarioRepository.save(
-                        Usuario.builder()
-                                .email("contratante@empresa.com")
-                                .senha(passwordEncoder.encode("contratante123"))
-                                .role(Role.CONTRATANTE)
-                                .build()
-                ));
+        String resolvedAdminPassword = requireSeedPassword(adminPassword, "app.seed.admin-password");
+        String resolvedContratantePassword = requireSeedPassword(contratantePassword, "app.seed.contratante-password");
+        String resolvedContratadaPassword = requireSeedPassword(contratadaPassword, "app.seed.contratada-password");
 
-        Contratante contratante = contratanteRepository
-                .findByUsuario(uContratante)
-                .orElseGet(() -> contratanteRepository.save(
-                        Contratante.builder()
-                                .nome("Empresa Contratante Teste")
-                                .usuario(uContratante)
-                                .build()
-                ));
+        Usuario admin = usuarioRepository.save(
+                Usuario.builder()
+                        .nome("Administrador")
+                        .email("admin@admin.com")
+                        .senha(passwordEncoder.encode(resolvedAdminPassword))
+                        .role(Role.ADMIN)
+                        .mustChangePassword(false)
+                        .build()
+        );
 
-        // CONTRATADA
-        Usuario uContratada = usuarioRepository.findByEmail("contratada@empresa.com")
-                .orElseGet(() -> usuarioRepository.save(
-                        Usuario.builder()
-                                .email("contratada@empresa.com")
-                                .senha(passwordEncoder.encode("empresa123"))
-                                .role(Role.CONTRATADA)
-                                .build()
-                ));
+        Usuario usuarioContratante = usuarioRepository.save(
+                Usuario.builder()
+                        .nome("Empresa Contratante")
+                        .email("contratante@contratante.com")
+                        .senha(passwordEncoder.encode(resolvedContratantePassword))
+                        .role(Role.CONTRATANTE)
+                        .mustChangePassword(false)
+                        .build()
+        );
 
-        if (!contratadaRepository.existsByUsuario(uContratada)) {
-            contratadaRepository.save(
-                    Contratada.builder()
-                            .nome("Empresa Contratada Teste")
-                            .cnpj("12.345.678/0001-99")
-                            .numeroContrato("8897")
-                            .numeroPedido("8897")
-                            .usuario(uContratada)
-                            .contratante(contratante)
-                            .build()
+        Contratante contratante = contratanteRepository.save(
+                Contratante.builder()
+                        .nome("Empresa Contratante")
+                        .cnpj("82197557000129")
+                        .dominioEmail("contratante.com")
+                        .usuario(usuarioContratante)
+                        .build()
+        );
+
+        usuarioContratante.setContratante(contratante);
+        usuarioRepository.save(usuarioContratante);
+
+        Usuario usuarioContratada = usuarioRepository.save(
+                Usuario.builder()
+                        .nome("Empresa Contratada")
+                        .email("contratada@contratada.com")
+                        .senha(passwordEncoder.encode(resolvedContratadaPassword))
+                        .role(Role.CONTRATADA)
+                        .mustChangePassword(false)
+                        .build()
+        );
+
+        Contratada contratada = contratadaRepository.save(
+                Contratada.builder()
+                        .nome("Empresa Contratada")
+                        .cnpj("02596263000130")
+                        .numeroContrato("8897")
+                        .numeroPedido("8897")
+                        .usuario(usuarioContratada)
+                        .contratante(contratante)
+                        .build()
+        );
+
+        usuarioContratada.setContratada(contratada);
+        usuarioRepository.save(usuarioContratada);
+    }
+
+    private String requireSeedPassword(String password, String propertyName) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    "Propriedade obrigatoria ausente para seed: " + propertyName +
+                    ". Defina essa propriedade apenas no ambiente em que app.seed.enabled=true."
             );
         }
+        return password;
     }
 }
 

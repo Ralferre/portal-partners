@@ -1,17 +1,16 @@
 # ----------- DEV STAGE -----------
-FROM node:21-alpine AS dev
+FROM node:20-alpine AS dev
 
 WORKDIR /app
 
-COPY package.json ./
-# RUN npm ci
-RUN yarn install
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --prefer-offline
 
 COPY . .
 
 EXPOSE 5173
 # CMD [ "npm", "run", "dev", "--", "--host" ]
-CMD [ "yarn", "run", "dev" ]
+CMD [ "npm", "run", "dev", "--", "--host" ]
 
 # ----------- PROD STAGE -----------
 # FROM node:20-alpine AS builder

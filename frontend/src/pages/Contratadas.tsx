@@ -19,8 +19,15 @@ import {
   Paper,
   IconButton,
   Alert,
+  InputAdornment,
 } from "@mui/material";
-import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  VisibilityOffOutlined,
+  VisibilityOutlined,
+} from "@mui/icons-material";
 import { AppLayout } from "./AppLayout";
 import api from "../services/api";
 import { formatCnpj, isValidCnpj, onlyDigits } from "../utils/validators";
@@ -31,6 +38,7 @@ type Contratada = {
   cnpj: string;
   numeroContrato: string;
   numeroPedido: string;
+  email: string;
 };
 
 type ContratadasPage = {
@@ -50,6 +58,18 @@ export function Contratadas() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [cnpjTouched, setCnpjTouched] = useState(false);
+
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editSenha, setEditSenha] = useState("");
+  const [editCnpj, setEditCnpj] = useState("");
+  const [editNumeroContrato, setEditNumeroContrato] = useState("");
+  const [editNumeroPedido, setEditNumeroPedido] = useState("");
+  const [showEditSenha, setShowEditSenha] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [showCreateSenha, setShowCreateSenha] = useState(false);
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -76,18 +96,90 @@ export function Contratadas() {
     }
   };
 
-  const handleSubmit = async () => {
-    setLoading(true);
+  const handleOpenEdit = (c: Contratada) => {
+    setError("");
+    setSuccess("");
+    setEditId(c.id);
+    setEditNome(c.nome ?? "");
+    setEditEmail(c.email ?? "");
+    setEditSenha("");
+    setShowEditSenha(false);
+    setEditCnpj(c.cnpj ?? "");
+    setEditNumeroContrato(c.numeroContrato ?? "");
+    setEditNumeroPedido(c.numeroPedido ?? "");
+    setOpenEdit(true);
+  };
+
+  const handleEdit = async () => {
     setError("");
     setSuccess("");
 
-    try {
-      const cnpjDigits = onlyDigits(formData.cnpj);
-      if (!isValidCnpj(cnpjDigits)) {
-        setError("CNPJ inválido");
-        return;
-      }
+    if (editId == null) {
+      setError("Contratada inválida");
+      return;
+    }
 
+    const nome = editNome.trim();
+    const email = editEmail.trim();
+    const cnpjDigits = onlyDigits(editCnpj);
+    const numeroContrato = editNumeroContrato.trim();
+    const numeroPedido = editNumeroPedido.trim();
+    const senha = editSenha;
+
+    if (!nome || !email || !cnpjDigits || !numeroContrato || !numeroPedido) {
+      setError("Preencha nome, email, cnpj, nº contrato e nº pedido");
+      return;
+    }
+
+    if (!isValidCnpj(cnpjDigits)) {
+      setError("CNPJ inválido");
+      return;
+    }
+
+    if (senha && senha.length > 0 && senha.length < 8) {
+      setError("A senha deve ter no mínimo 8 caracteres");
+      return;
+    }
+
+    setEditing(true);
+    try {
+      await api.put(`/api/contratantes/contratadas/${editId}`, {
+        nome,
+        email,
+        senha: senha?.trim() ? senha : null,
+        cnpj: cnpjDigits,
+        numeroContrato,
+        numeroPedido,
+      });
+
+      setOpenEdit(false);
+      setSuccess("Contratada atualizada com sucesso!");
+      await loadContratadas(pageInfo.page);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Erro ao atualizar contratada");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+    setSuccess("");
+
+    if ((formData.senha || "").length < 8) {
+      setError("A senha deve ter no mínimo 8 caracteres");
+      return;
+    }
+
+    const cnpjDigits = onlyDigits(formData.cnpj);
+    if (!isValidCnpj(cnpjDigits)) {
+      setError("CNPJ inválido");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
       await api.post("/api/contratantes/contratada", {
         ...formData,
         cnpj: cnpjDigits,
@@ -102,6 +194,7 @@ export function Contratadas() {
         email: "",
         senha: "",
       });
+      setShowCreateSenha(false);
       setCnpjTouched(false);
       loadContratadas(0);
     } catch (err: any) {
@@ -173,6 +266,9 @@ export function Contratadas() {
                       <strong>Nome</strong>
                     </TableCell>
                     <TableCell>
+                      <strong>Email</strong>
+                    </TableCell>
+                    <TableCell>
                       <strong>CNPJ</strong>
                     </TableCell>
                     <TableCell>
@@ -189,7 +285,7 @@ export function Contratadas() {
                 <TableBody>
                   {contratadas.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} align="center">
+                      <TableCell colSpan={6} align="center">
                         Nenhuma contratada cadastrada
                       </TableCell>
                     </TableRow>
@@ -197,10 +293,14 @@ export function Contratadas() {
                     contratadas.map((contratada) => (
                       <TableRow key={contratada.id}>
                         <TableCell>{contratada.nome}</TableCell>
+                        <TableCell>{contratada.email}</TableCell>
                         <TableCell>{formatCnpj(contratada.cnpj)}</TableCell>
                         <TableCell>{contratada.numeroContrato}</TableCell>
                         <TableCell>{contratada.numeroPedido}</TableCell>
                         <TableCell align="center">
+                          <IconButton color="primary" onClick={() => handleOpenEdit(contratada)}>
+                            <EditIcon />
+                          </IconButton>
                           <IconButton
                             color="error"
                             onClick={() => handleDelete(contratada.id)}
@@ -298,13 +398,22 @@ export function Contratadas() {
               />
               <TextField
                 label="Senha"
-                type="password"
+                type={showCreateSenha ? "text" : "password"}
                 fullWidth
                 required
                 value={formData.senha}
                 onChange={(e) =>
                   setFormData({ ...formData, senha: e.target.value })
                 }
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton edge="end" onClick={() => setShowCreateSenha((prev) => !prev)}>
+                        {showCreateSenha ? <VisibilityOutlined /> : <VisibilityOffOutlined />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
             </Box>
           </DialogContent>
@@ -317,6 +426,73 @@ export function Contratadas() {
               sx={{ backgroundColor: "#1b6c72ff" }}
             >
               {loading ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Editar Contratada</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
+              <TextField
+                label="Nome da Empresa"
+                fullWidth
+                required
+                value={editNome}
+                onChange={(e) => setEditNome(e.target.value)}
+              />
+              <TextField
+                label="E-mail"
+                fullWidth
+                required
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+              />
+              <TextField
+                label="Senha (opcional)"
+                fullWidth
+                type={showEditSenha ? "text" : "password"}
+                value={editSenha}
+                onChange={(e) => setEditSenha(e.target.value)}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton edge="end" onClick={() => setShowEditSenha((prev) => !prev)}>
+                        {showEditSenha ? <VisibilityOutlined /> : <VisibilityOffOutlined />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                label="CNPJ"
+                fullWidth
+                required
+                value={editCnpj}
+                onChange={(e) => setEditCnpj(e.target.value)}
+              />
+              <TextField
+                label="Nº Contrato"
+                fullWidth
+                required
+                value={editNumeroContrato}
+                onChange={(e) => setEditNumeroContrato(e.target.value)}
+              />
+              <TextField
+                label="Nº Pedido"
+                fullWidth
+                required
+                value={editNumeroPedido}
+                onChange={(e) => setEditNumeroPedido(e.target.value)}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button variant="outlined" onClick={() => setOpenEdit(false)} disabled={editing}>
+              Cancelar
+            </Button>
+            <Button variant="contained" onClick={handleEdit} disabled={editing}>
+              {editing ? "Salvando..." : "Salvar"}
             </Button>
           </DialogActions>
         </Dialog>

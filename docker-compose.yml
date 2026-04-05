@@ -57,14 +57,36 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
 
       MINIO_URL: http://minio:9000
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://host.docker.internal:9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_ENCRYPTION_REQUIRED: ${MINIO_BUCKET_ENCRYPTION_REQUIRED:-false}
 
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
+
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL}
+      APP_SEED_ENABLED: ${APP_SEED_ENABLED:-false}
+      APP_SEED_ADMIN_PASSWORD: ${APP_SEED_ADMIN_PASSWORD}
+      APP_SEED_CONTRATANTE_PASSWORD: ${APP_SEED_CONTRATANTE_PASSWORD}
+      APP_SEED_CONTRATADA_PASSWORD: ${APP_SEED_CONTRATADA_PASSWORD}
+
+      # Criptografia de campos sensiveis (AES-256-GCM) — gerar com: openssl rand -base64 32
+      APP_FIELD_ENCRYPTION_KEY: ${APP_FIELD_ENCRYPTION_KEY}
+
+      # LGPD
+      APP_LGPD_VERSAO_TERMO_ATUAL: ${APP_LGPD_VERSAO_TERMO_ATUAL:-v1.0}
+      APP_LGPD_TERMO_HASH_ATUAL: ${APP_LGPD_TERMO_HASH_ATUAL}
+      APP_LGPD_TERMO_TEXTO_ATUAL: ${APP_LGPD_TERMO_TEXTO_ATUAL:-Autorizo o tratamento dos meus dados pessoais estritamente para cadastro, upload, armazenamento, analise documental, auditoria e cumprimento de obrigacoes legais e contratuais no Portal Partners, conforme a LGPD.}
 
     depends_on:
       postgres: 
