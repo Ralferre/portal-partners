@@ -1,3 +1,455 @@
+# PORTAL_PARTNERS - Documentacao Tecnica Alinhada ao Codigo
+
+Este documento descreve somente o que esta implementado no codigo atual do projeto `PORTAL_PARTNERS`, considerando:
+
+- Backend em `backend/src/main/java` e `backend/src/main/resources`
+- Frontend em `frontend/src`
+- Orquestracao em `docker-compose.yml`
+
+Nao ha aqui backlog, proposta futura ou funcionalidades planejadas.
+
+## 1. Visao geral da aplicacao
+
+O sistema implementa um portal de gestao documental entre perfis:
+
+- `ADMIN`
+- `CONTRATANTE`
+- `CONTRATADA`
+
+Capacidades implementadas:
+
+- Autenticacao JWT
+- Fluxo de primeiro acesso com troca obrigatoria de senha
+- Recuperacao e reset de senha por email
+- Cadastro e gestao de contratantes, contratadas e funcionarios
+- Upload/download de documentos (fluxo zero-copy com URL pre-assinada e fluxo legado multipart)
+- Gestao de status documental
+- Consentimento LGPD para documentos de funcionario
+- Auditoria de eventos
+- Painel de relatorios e dashboards por perfil
+
+## 2. Stack e tecnologia
+
+### Backend
+
+- Java 21
+- Spring Boot 3.3.3
+- Spring Web, Validation, Data JPA, Security, Mail, AOP
+- PostgreSQL
+- MinIO (S3 compativel)
+- JWT (`io.jsonwebtoken`)
+- Hypersistence Utils (suporte JSONB)
+
+### Frontend
+
+- React 18 + TypeScript
+- Vite
+- Material UI
+- React Router DOM
+- Axios
+
+### Infra
+
+- Docker Compose com servicos:
+  - `postgres`
+  - `minio`
+  - `backend`
+  - `frontend`
+
+## 3. Backend - dominio e persistencia
+
+## 3.1 Entidades principais
+
+- `Usuario`
+  - Campos: `id`, `email`, `nome`, `senha`, `role`, `resetToken`, `resetTokenExpiration`, `mustChangePassword`
+  - Relacoes opcionais: `contratante`, `contratada`
+  - Implementa `UserDetails`
+
+- `Contratante`
+  - Campos: `id`, `nome`, `cnpj`, `dominioEmail`
+  - Relacoes: `usuario` (one-to-one), `usuarios`, `contratos`, `contratadas`
+
+- `Contratada`
+  - Campos: `id`, `cnpj`, `nome`, `numeroContrato`, `numeroPedido`
+  - Relacoes: `usuario` (one-to-one), `contratante`, `usuarios`, `contratos`, `funcionarios`
+
+- `Contrato`
+  - Campos: `id`, `numeroPedido`, `numeroContrato`
+  - Relacoes: `contratante`, `contratada`
+  - Observacao: entidade existe, sem API especifica dedicada no codigo atual
+
+- `Funcionario`
+  - Campos: `id`, `cpf`, `cpfHash`, `nomeCompleto`
+  - Relacao: `contratada`, `documentos`
+  - `cpf` e armazenado cifrado e `cpfHash` e usado para unicidade por contratada
+
+- `Documento`
+  - Campos relevantes:
+    - Identificacao: `tipoDocumento`, `statusDocumento`
+    - Armazenamento: `objectKey`, `contentType`, `tamanhoBytes`, `arquivoPath` (legado), `nomeArquivo`, `nomeArquivoOriginal`
+    - Datas: `dataPostagem`, `dataDownloadContratante`, `dataStatusAtualizado`
+  - Relacoes: `contratada`, `funcionario`
+
+- `AuditLog`
+  - Campos: `id`, `timestamp`, `userId`, `email`, `role`, `organizacaoId`, `acao`, `entidade`, `entidadeId`, `detalhesJson`, `ip`, `userAgent`, `status`, `mensagemErro`
+
+- `LgpdConsent`
+  - Campos: `id`, `userId`, `timestamp`, `versaoTermo`, `ip`, `userAgent`, `hashTermo`
+
+- `EventoDocumento`
+  - Entidade e repositorio existem, sem uso funcional relevante no fluxo atual do backend
+
+## 3.2 Enums implementados
+
+- `Role`: `ADMIN`, `CONTRATADA`, `CONTRATANTE`
+- `TipoDocumento`: `CNPJ`, `PGR`, `PCMSO`, `ORDEM_SERVICO`, `CNDT`, `CNAT`, `CNRF`, `GRIP`, `CTPS_DIGITAL`, `INSS`, `FGTS`, `HOLERITE`, `ASO`, `RG`, `CPF`, `FICHA_EPI`, `NR10`, `NR12`, `NR35`
+- `StatusDocumento`: `POSTADO`, `ANALISADO`, `APROVADO`, `PENDENTE`, `REPROVADO`
+- `StatusAuditoria`: `SUCCESS`, `FAILURE`
+- `TypeReferenceFile`: `CONTRATADA`, `FUNCIONARIO`
+
+## 4. Backend - seguranca, autenticacao e autorizacao
+
+- `SecurityConfig`:
+  - CSRF desabilitado
+  - CORS habilitado via `CorsConfig`
+  - Rotas publicas:
+    - `POST /api/auth/login`
+    - `POST /api/auth/forgot-password`
+    - `POST /api/auth/reset-password`
+  - Rotas `api/admin/**` restritas a `ROLE_ADMIN`
+  - Demais rotas: autenticadas
+
+- Filtros:
+  - `JwtAuthenticationFilter` para extracao/validacao de token
+  - `FirstAccessPasswordEnforcementFilter` para forcar troca de senha quando `mustChangePassword=true` (exceto login, forgot/reset e troca de primeiro acesso)
+
+- JWT:
+  - Subject = email
+  - Claim `role`
+
+- CORS (`CorsConfig`):
+  - Origins permitidas: `http://localhost:5173`, `http://localhost:3000`
+
+## 5. Backend - regras de negocio principais
+
+- `AuthService`:
+  - Login e retorno de `AuthResponse` com `token`, `role`, `perfilId`, `mustChangePassword`
+  - Forgot/reset de senha com token temporario
+  - Troca de senha obrigatoria no primeiro acesso
+
+- `ContratanteService`:
+  - Criacao de contratante com validacao de unicidade (email/cnpj/dominio)
+  - Atualizacao com restricao de dominio
+
+- `ContratadaService`:
+  - Listagem com escopo por perfil
+  - Criacao, atualizacao e exclusao com validacoes de ownership
+  - Fluxo de usuario vinculado por dominio de email
+
+- `ContratanteUsuarioService`:
+  - Gestao de usuarios internos da contratante (`/api/contratantes/usuarios`)
+
+- `FuncionarioService`:
+  - Cadastro com CPF normalizado
+  - Unicidade por `cpfHash` + contratada
+  - Escopo por perfil na listagem e exclusao
+
+- `DocumentoService`:
+  - Fluxo zero-copy:
+    1. solicita upload pre-assinado
+    2. cliente envia direto ao storage
+    3. confirma upload
+  - Fluxo legado multipart tambem existe
+  - Download pre-assinado e download legado via stream
+  - Alteracao de status com validacao de permissao e de estado permitido
+  - Filtros por especificacao (`Specification`)
+  - Contagem de documentos novos para badge do contratante
+  - Exigencia de consentimento LGPD para upload de documento de funcionario
+
+- `LgpdService`:
+  - Registro de consentimento versionado
+  - Validacao de hash/versao do termo atual
+
+- `AuditService` + `AuditAspect`:
+  - Registro assincrono de eventos de auditoria
+  - Limpeza agendada de registros antigos
+
+## 6. Backend - APIs implementadas
+
+## 6.1 Autenticacao
+
+- `POST /api/auth/login`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+- `POST /api/auth/change-password-first-access`
+
+## 6.2 LGPD
+
+- `POST /api/lgpd/consentimento`
+- `GET /api/lgpd/consentimento/valido`
+- `GET /api/lgpd/termo-atual`
+
+## 6.3 Documentos
+
+- `POST /api/documentos/solicitar-upload` (contratada)
+- `POST /api/documentos/{documentoId}/confirmar-upload` (contratada)
+- `GET /api/documentos/{id}/solicitar-download`
+- `POST /api/documentos/upload` (fluxo legado multipart)
+- `GET /api/documentos/{id}/download` (stream legado)
+- `PUT /api/documentos/status/{id}`
+- `GET /api/documentos/novos/count`
+- `GET /api/documentos/tipos`
+- `GET /api/documentos`
+- `DELETE /api/documentos/{id}`
+
+## 6.4 Contratante
+
+- `POST /api/contratantes/contratada`
+- `GET /api/contratantes/contratada`
+- `GET /api/contratantes/contratadas`
+- `PUT /api/contratantes/contratadas/{id}`
+- `DELETE /api/contratantes/contratadas/{id}`
+- `GET /api/contratantes/usuarios`
+- `POST /api/contratantes/usuarios`
+
+## 6.5 Contratada / Funcionarios
+
+- `GET /api/contratadas/funcionario`
+- `POST /api/contratadas/funcionarios`
+- `GET /api/contratadas/list-funcionarios`
+- `GET /api/contratadas/funcionarios`
+- `GET /api/contratadas/funcionarios/paged`
+- `DELETE /api/contratadas/funcionarios/{id}`
+- `GET /api/funcionarios/funcionario/{nomeCompleto}`
+
+## 6.6 Busca, relatorios e badge
+
+- `GET /api/search`
+- `GET /api/report/dashboard`
+- `GET /api/report/documentos/ultimos-7-dias`
+- `GET /api/badge/pendentes`
+
+## 6.7 Administracao
+
+Controller base: `/api/admin`
+
+- Contratantes:
+  - `GET /api/admin/contratantes`
+  - `POST /api/admin/contratante`
+  - `PUT /api/admin/contratantes/{id}`
+  - `DELETE /api/admin/contratante/{nome}`
+
+- Contratadas:
+  - `GET /api/admin/contratadas`
+  - `PUT /api/admin/contratadas/{id}`
+
+- Funcionarios:
+  - `GET /api/admin/funcionarios`
+
+- Auditoria:
+  - `GET /api/admin/audit-log`
+
+## 7. Backend - configuracao e infraestrutura
+
+- `application.properties`:
+  - datasource PostgreSQL
+  - JPA com `ddl-auto=update`
+  - JWT, Mail, MinIO, LGPD e criptografia por variaveis de ambiente
+
+- `MinioConfig` + `BucketInitializer`:
+  - cliente MinIO para upload/download e presigned URLs
+  - criacao de bucket e tentativa de configuracao de criptografia do bucket
+
+- `LegacySchemaCompatibilityInitializer`:
+  - ajustes de compatibilidade de schema no startup para colunas legadas
+
+- `DataSeeder`:
+  - dados iniciais de usuarios/organizacoes quando base vazia
+
+- Migrations SQL presentes em `backend/src/main/resources/db/migration`:
+  - `V2__create_audit_log.sql`
+  - `V3__create_lgpd_consent.sql`
+  - `V4__add_documento_security_fields.sql`
+
+## 8. Frontend - arquitetura
+
+- Entrada:
+  - `main.tsx` -> `ThemeProvider`, `CssBaseline`, `AuthProvider`
+  - `App.tsx` -> `AppRoutes`
+
+- Sessao:
+  - `AuthContext` controla usuario/token em memoria + `localStorage`
+  - Chaves usadas:
+    - `@PortalPartners:token`
+    - `@PortalPartners:user`
+    - `@PortalPartners:theme`
+
+- Cliente HTTP:
+  - `services/api.js` com `baseURL` de `VITE_API_BASE_URL`
+  - Interceptor de request injeta bearer token
+  - Interceptor de response limpa storage em `401`
+
+## 9. Frontend - rotas e controle de acesso
+
+## 9.1 Rotas publicas
+
+- `/login`
+- `/forgot-password`
+- `/reset-password`
+
+## 9.2 Rotas protegidas (autenticacao)
+
+- `/primeiro-acesso/alterar-senha`
+- `/dashboard`
+- `/documentos`
+- `/upload-documento`
+- `/contratadas`
+- `/contratante/usuarios`
+- `/funcionarios`
+- `/admin/contratantes`
+- `/admin/contratadas`
+- `/admin/funcionarios`
+- `/admin/audit-log`
+- `/relatorios`
+
+Observacao importante:
+
+- `ProtectedRoute` protege por autenticacao e regra de primeiro acesso.
+- Nao ha bloqueio de rota por role no frontend.
+- O controle por perfil no frontend e majoritariamente por menu/visibilidade de acoes.
+- A restricao efetiva por perfil depende das regras no backend.
+
+## 10. Frontend - telas e funcionalidades implementadas
+
+- `Login`:
+  - autentica e redireciona para dashboard ou troca de senha de primeiro acesso
+
+- `ForgotPassword` e `ResetPassword`:
+  - fluxo de recuperacao de senha por email/token
+
+- `FirstAccessChangePassword`:
+  - troca obrigatoria de senha para usuarios marcados com `mustChangePassword`
+
+- `Dashboard`:
+  - renderiza dashboard especifico por `role`:
+    - `AdminDashboard`
+    - `ContratanteDashboard`
+    - `ContratadaDashboard`
+
+- `Documentos`:
+  - tabela paginada com filtros
+  - download por URL pre-assinada
+  - alteracao de status (contratante/admin)
+  - exclusao (contratada/admin)
+
+- `UploadDocumento`:
+  - upload zero-copy para MinIO via URL pre-assinada
+  - referencia para `CONTRATADA` ou `FUNCIONARIO`
+  - integracao LGPD no caso de funcionario
+
+- `Contratadas`:
+  - CRUD de contratadas para fluxo de contratante
+
+- `UsuariosContratante`:
+  - listagem e criacao de usuarios da contratante
+
+- `Funcionarios`:
+  - listagem paginada, criacao e exclusao de funcionarios
+
+- `Relatorios`:
+  - consumo de metricas de `/api/report/dashboard`
+
+- Admin pages:
+  - `AdminContratantes`: listar/criar/editar/excluir
+  - `AdminContratadas`: listar/editar
+  - `AdminFuncionarios`: listagem paginada
+  - `AdminAuditLogs`: consulta com filtros e detalhe JSON de eventos
+
+- `Header`:
+  - busca global (`/api/search`)
+  - badge de documentos novos para contratante
+  - seletor de tema
+
+- `SideBar`:
+  - itens dinamicos por perfil
+  - logout
+
+## 11. Integracao frontend -> backend (endpoints usados)
+
+- Auth:
+  - `POST /api/auth/login`
+  - `POST /api/auth/forgot-password`
+  - `POST /api/auth/reset-password`
+  - `POST /api/auth/change-password-first-access`
+
+- Documentos:
+  - `GET /api/documentos`
+  - `GET /api/documentos/tipos`
+  - `DELETE /api/documentos/{id}`
+  - `GET /api/documentos/{id}/solicitar-download`
+  - `PUT /api/documentos/status/{id}`
+  - `POST /api/documentos/solicitar-upload`
+  - `POST /api/documentos/{id}/confirmar-upload`
+  - `GET /api/documentos/novos/count`
+
+- LGPD:
+  - `GET /api/lgpd/termo-atual`
+  - `POST /api/lgpd/consentimento`
+
+- Contratante:
+  - `GET /api/contratantes/contratadas`
+  - `POST /api/contratantes/contratada`
+  - `PUT /api/contratantes/contratadas/{id}`
+  - `DELETE /api/contratantes/contratadas/{id}`
+  - `GET /api/contratantes/usuarios`
+  - `POST /api/contratantes/usuarios`
+
+- Contratada:
+  - `GET /api/contratadas/funcionarios`
+  - `GET /api/contratadas/funcionarios/paged`
+  - `POST /api/contratadas/funcionarios`
+  - `DELETE /api/contratadas/funcionarios/{id}`
+
+- Admin:
+  - `GET /api/admin/contratantes`
+  - `POST /api/admin/contratante`
+  - `PUT /api/admin/contratantes/{id}`
+  - `DELETE /api/admin/contratante/{nome}`
+  - `GET /api/admin/contratadas`
+  - `PUT /api/admin/contratadas/{id}`
+  - `GET /api/admin/funcionarios`
+  - `GET /api/admin/audit-log`
+
+- Relatorio e busca:
+  - `GET /api/report/dashboard`
+  - `GET /api/report/documentos/ultimos-7-dias`
+  - `GET /api/search`
+
+## 12. Itens existentes no codigo, mas sem fluxo ativo no app
+
+- `pages/PostFiles.tsx` e `pages/ReportFiles.tsx` existem, mas nao estao roteadas em `AppRoutes.tsx`
+- `FileController` backend existe sem endpoints HTTP mapeados
+- Entidade `Contrato` existe sem API dedicada no backend atual
+
+## 13. Execucao local
+
+Via Docker Compose (raiz do projeto):
+
+```bash
+docker compose up --build
+```
+
+Servicos esperados:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8080`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- PostgreSQL: `localhost:5432`
+
+## 14. Escopo desta documentacao
+
+Este arquivo reflete o estado atual do codigo-fonte no momento desta atualizacao e substitui informacoes divergentes de documentos auxiliares anteriores.
 # Portal Partners - Documentacao Tecnica e Plano Evolutivo
 
 ## 1. Objetivo do sistema
@@ -505,7 +957,7 @@ Mesma correcao aplicada:
 - no fluxo de criacao de `Contratada`, para evitar o mesmo tipo de problema.
 
 ### 15.7 Novo comportamento do DataSeeder
-O `DataSeeder` foi simplificado para apoiar testes limpos apos reset de volumes.
+O `DataSeeder` foi reforcado para reduzir exposicao de credenciais e apoiar testes limpos apos reset de volumes.
 
 Comportamento atual:
 - se ja existirem registros no banco, o seed nao executa;
@@ -514,18 +966,12 @@ Comportamento atual:
   - `CONTRATANTE`
   - `CONTRATADA`
 - todos alinhados com a nova estrutura de usuarios e organizacoes;
-- os usuarios seedados sobem com `mustChangePassword=false` para facilitar testes iniciais do ambiente.
-
-Credenciais seedadas:
-- Admin:
-  - `admin@admin.com`
-  - `admin123`
-- Contratante:
-  - `contratante@empresa.com`
-  - `contratante123`
-- Contratada:
-  - `contratada@empresa.com`
-  - `empresa123`
+- o seed so executa quando `APP_SEED_ENABLED=true`;
+- as senhas seedadas nao ficam no codigo: sao obrigatorias via variavel de ambiente quando seed estiver ativo:
+  - `APP_SEED_ADMIN_PASSWORD`
+  - `APP_SEED_CONTRATANTE_PASSWORD`
+  - `APP_SEED_CONTRATADA_PASSWORD`
+- se alguma senha nao for informada com seed ativo, o backend falha no startup com erro explicito (fail-fast).
 
 ## 16. Roteiro de teste da fase 1
 

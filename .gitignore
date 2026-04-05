@@ -10,11 +10,11 @@ Thumbs.db
 .env
 *.env
 !*.env.example
-.Commands.md
-.DIAGNOSTIC_REPORT.md
-.FRONTEND_IMPLEMENTATION.md
-.REFACTORING_REPORT.md
-.REFACTORING_SUMMARY.md
+Commands.md
+DIAGNOSTIC_REPORT.md
+FRONTEND_IMPLEMENTATION.md
+REFACTORING_REPORT.md
+REFACTORING_SUMMARY.md
 
 frontend/node_modules/
 */node_modules/

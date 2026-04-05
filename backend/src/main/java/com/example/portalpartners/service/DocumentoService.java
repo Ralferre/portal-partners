@@ -4,6 +4,7 @@ import com.example.portalpartners.audit.Auditavel;
 import com.example.portalpartners.documento.DocumentoSpecification;
 import com.example.portalpartners.dto.*;
 import com.example.portalpartners.exceptions.BusinessRulesException;
+import com.example.portalpartners.exceptions.ConflictException;
 import com.example.portalpartners.exceptions.ForbiddenException;
 import com.example.portalpartners.exceptions.ResourceNotFoundException;
 import com.example.portalpartners.model.*;
@@ -66,7 +67,8 @@ public class DocumentoService {
 
         Documento documento = new Documento();
         documento.setTipoDocumento(request.tipoDocumento());
-        documento.setStatusDocumento(StatusDocumento.PENDENTE);
+        // "POSTADO" representa upload solicitado e aguardando validacao/confirmacao final.
+        documento.setStatusDocumento(StatusDocumento.POSTADO);
         documento.setDataPostagem(LocalDateTime.now());
         documento.setContentType(request.contentType());
         documento.setTamanhoBytes(request.tamanhoBytes());
@@ -80,7 +82,7 @@ public class DocumentoService {
         String objectKey = UUID.randomUUID().toString();
         documento.setObjectKey(objectKey);
 
-        resolverReferencia(documento, request, usuario);
+        resolverReferencia(documento, request);
 
         Documento saved = documentoRepository.save(documento);
         String uploadUrl = minioService.gerarPresignedPutUrl(objectKey);
@@ -99,6 +101,8 @@ public class DocumentoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Documento nao encontrado"));
 
         validarPermissaoContratada(documento);
+        validarEstadoParaConfirmacao(documento);
+        validarObjetoUploadNoStorage(documento);
         documento.setStatusDocumento(StatusDocumento.PENDENTE);
         return convertToResponse(documentoRepository.save(documento));
     }
@@ -125,10 +129,7 @@ public class DocumentoService {
             documentoRepository.save(documento);
         }
 
-        // Usa objectKey (novo) ou arquivoPath (legado)
-        String key = documento.getObjectKey() != null
-                ? documento.getObjectKey()
-                : documento.getArquivoPath();
+        String key = resolverChaveDownloadDisponivel(documento);
 
         String downloadUrl = minioService.gerarPresignedGetUrl(key);
 
@@ -166,21 +167,14 @@ public class DocumentoService {
         documento.setDataPostagem(LocalDateTime.now());
 
         if (dto.tipoReferenciaDocumento() == TypeReferenceFile.CONTRATADA) {
-            Contratada contratada;
-            if (dto.contratadaId() != null) {
-                contratada = contratadaRepository.findById(dto.contratadaId())
-                        .orElseThrow(() -> new BusinessRulesException("Contratada nao encontrada"));
-            } else {
-                contratada = usuarioLogadoService.getContratadaLogada();
-            }
+            Contratada contratada = resolverContratadaNoEscopoDaLogada(dto.contratadaId());
             documento.setContratada(contratada);
             documento.setFuncionario(null);
         } else if (dto.tipoReferenciaDocumento() == TypeReferenceFile.FUNCIONARIO) {
             if (dto.funcionarioId() == null) {
                 throw new BusinessRulesException("Funcionário deve ser informado");
             }
-            Funcionario funcionario = funcionarioRepository.findById(dto.funcionarioId())
-                    .orElseThrow(() -> new BusinessRulesException("Funcionário não encontrado"));
+            Funcionario funcionario = resolverFuncionarioNoEscopoDaLogada(dto.funcionarioId());
             documento.setFuncionario(funcionario);
             documento.setContratada(funcionario.getContratada());
         } else {
@@ -222,9 +216,7 @@ public class DocumentoService {
             documentoRepository.save(documento);
         }
 
-        String key = documento.getObjectKey() != null
-                ? documento.getObjectKey()
-                : documento.getArquivoPath();
+        String key = resolverChaveDownloadDisponivel(documento);
 
         InputStream stream   = minioService.getObjectStream(key);
         Resource resource    = new InputStreamResource(stream);
@@ -370,29 +362,49 @@ public class DocumentoService {
     // Auxiliares privados
     // =========================================================================
 
-    private void resolverReferencia(Documento documento,
-                                    SolicitarUploadRequest request,
-                                    Usuario usuario) {
+    private void resolverReferencia(Documento documento, SolicitarUploadRequest request) {
         if (request.tipoReferencia() == TypeReferenceFile.CONTRATADA) {
-            Contratada contratada;
-            if (request.contratadaId() != null) {
-                contratada = contratadaRepository.findById(request.contratadaId())
-                        .orElseThrow(() -> new BusinessRulesException("Contratada nao encontrada"));
-            } else {
-                contratada = usuarioLogadoService.getContratadaLogada();
-            }
+            Contratada contratada = resolverContratadaNoEscopoDaLogada(request.contratadaId());
             documento.setContratada(contratada);
         } else if (request.tipoReferencia() == TypeReferenceFile.FUNCIONARIO) {
             if (request.funcionarioId() == null) {
                 throw new BusinessRulesException("FuncionarioId deve ser informado");
             }
-            Funcionario funcionario = funcionarioRepository.findById(request.funcionarioId())
-                    .orElseThrow(() -> new BusinessRulesException("Funcionario nao encontrado"));
+            Funcionario funcionario = resolverFuncionarioNoEscopoDaLogada(request.funcionarioId());
             documento.setFuncionario(funcionario);
             documento.setContratada(funcionario.getContratada());
         } else {
             throw new BusinessRulesException("Tipo de referencia invalido");
         }
+    }
+
+    private Contratada resolverContratadaNoEscopoDaLogada(Long contratadaIdInformada) {
+        Contratada contratadaLogada = usuarioLogadoService.getContratadaLogada();
+        if (contratadaIdInformada == null) {
+            return contratadaLogada;
+        }
+
+        Contratada contratadaInformada = contratadaRepository.findById(contratadaIdInformada)
+                .orElseThrow(() -> new BusinessRulesException("Contratada nao encontrada"));
+
+        if (!contratadaInformada.getId().equals(contratadaLogada.getId())) {
+            throw new ForbiddenException(
+                    "Voce nao pode enviar documento para outra contratada");
+        }
+        return contratadaInformada;
+    }
+
+    private Funcionario resolverFuncionarioNoEscopoDaLogada(Long funcionarioId) {
+        Contratada contratadaLogada = usuarioLogadoService.getContratadaLogada();
+        Funcionario funcionario = funcionarioRepository.findById(funcionarioId)
+                .orElseThrow(() -> new BusinessRulesException("Funcionario nao encontrado"));
+
+        if (funcionario.getContratada() == null
+                || !funcionario.getContratada().getId().equals(contratadaLogada.getId())) {
+            throw new ForbiddenException(
+                    "Voce nao pode enviar documento para funcionario de outra contratada");
+        }
+        return funcionario;
     }
 
     private void validarPermissaoContratada(Documento documento) {
@@ -503,6 +515,105 @@ public class DocumentoService {
         if (tamanhoBytes > 10_000_000L) {
             throw new BusinessRulesException("Arquivo não pode ser maior que 10MB");
         }
+    }
+
+    private void validarObjetoUploadNoStorage(Documento documento) {
+        if (documento.getObjectKey() == null || documento.getObjectKey().isBlank()) {
+            throw new BusinessRulesException("Documento sem objectKey para validacao de upload");
+        }
+
+        try {
+            var stat = minioService.statObject(documento.getObjectKey());
+
+            long tamanhoReal = stat.size();
+            String contentTypeReal = normalizarContentType(stat.contentType());
+            String contentTypeEsperado = normalizarContentType(documento.getContentType());
+            String etag = stat.etag();
+
+            validarTamanho(tamanhoReal);
+            validarContentType(contentTypeReal);
+            validarEtag(etag);
+
+            if (documento.getTamanhoBytes() == null || documento.getTamanhoBytes() != tamanhoReal) {
+                throw new BusinessRulesException(
+                        "Tamanho do arquivo enviado difere do solicitado");
+            }
+
+            if (contentTypeEsperado == null || !contentTypeEsperado.equals(contentTypeReal)) {
+                throw new BusinessRulesException(
+                        "Tipo real do arquivo difere do tipo informado na solicitacao");
+            }
+
+            // Normaliza metadados persistidos para refletir o objeto real armazenado.
+            documento.setContentType(contentTypeReal);
+            documento.setTamanhoBytes(tamanhoReal);
+        } catch (BusinessRulesException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            String mensagem = e.getMessage() != null ? e.getMessage() : "";
+            if (mensagem.contains("NoSuchKey")
+                    || mensagem.contains("Object does not exist")
+                    || mensagem.contains("object does not exist")) {
+                throw new BusinessRulesException(
+                        "Objeto de upload nao encontrado no storage. Reenvie o arquivo.");
+            }
+            throw new BusinessRulesException(
+                    "Falha ao validar integridade do arquivo no storage. Reenvie o upload e tente novamente.");
+        }
+    }
+
+    private String normalizarContentType(String contentType) {
+        if (contentType == null) return null;
+        String normalized = contentType.trim().toLowerCase();
+        if ("image/jpg".equals(normalized)) {
+            return "image/jpeg";
+        }
+        return normalized;
+    }
+
+    private void validarEstadoParaConfirmacao(Documento documento) {
+        if (documento.getStatusDocumento() != StatusDocumento.POSTADO) {
+            throw new ConflictException(
+                    "Documento nao esta pendente de confirmacao de upload");
+        }
+    }
+
+    private void validarEtag(String etag) {
+        if (etag == null || etag.isBlank()) {
+            throw new BusinessRulesException(
+                    "Integridade do objeto invalida: ETag ausente no storage");
+        }
+        String normalized = etag.trim().replace("\"", "");
+        // Para arquivos <= 10MB (single part), MinIO/S3 retorna ETag MD5 (32 hex chars).
+        if (!normalized.matches("^[a-fA-F0-9]{32}$")) {
+            throw new BusinessRulesException(
+                    "Integridade do objeto invalida: ETag fora do padrao esperado");
+        }
+    }
+
+    private String resolverChaveDownloadDisponivel(Documento documento) {
+        if (documento.getStatusDocumento() == StatusDocumento.POSTADO) {
+            throw new BusinessRulesException(
+                    "Documento ainda nao foi confirmado no storage e nao pode ser baixado");
+        }
+
+        String[] candidatas = { documento.getObjectKey(), documento.getArquivoPath() };
+        RuntimeException ultimaFalha = null;
+
+        for (String key : candidatas) {
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            try {
+                minioService.statObject(key);
+                return key;
+            } catch (RuntimeException e) {
+                ultimaFalha = e;
+            }
+        }
+
+        throw new BusinessRulesException(
+                "Arquivo nao encontrado no storage para este documento. Reenvie o arquivo.");
     }
 
     private DocumentoResponse convertToResponse(Documento documento) {

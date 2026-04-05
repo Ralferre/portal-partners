@@ -41,8 +41,8 @@ public class BucketInitializer {
                 log.info("Bucket ja existe: {}", bucketName);
             }
 
-            // Tenta habilitar SSE-S3. Em producao com KES/Vault, habilitara
-            // envelope encryption (SSE-KMS). Em dev, loga aviso e continua.
+            // Configura e valida SSE no bucket. Com modo estrito habilitado,
+            // a aplicacao falha na inicializacao se nao validar criptografia.
             minioService.configurarCriptografiaBucket();
 
         } catch (Exception ex) {

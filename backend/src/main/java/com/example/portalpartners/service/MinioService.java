@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -24,6 +25,9 @@ public class MinioService {
 
     @Value("${minio.bucket-name}")
     private String bucket;
+
+    @Value("${minio.bucket-encryption-required:true}")
+    private boolean bucketEncryptionRequired;
 
     public MinioService(
             @Qualifier("minioClient") MinioClient client,
@@ -42,23 +46,9 @@ public class MinioService {
                              String funcionarioNome,
                              TipoDocumento tipo) {
         try {
-            StringBuilder prefix = new StringBuilder(
-                    "contratadas/" + contratadaNome + "/documentos/" + tipo + "/");
-            if (funcionarioNome != null) {
-                prefix.insert(prefix.indexOf("/documentos"),
-                        "/funcionarios/" + funcionarioNome);
-            }
-
-            String extension = file.getOriginalFilename() != null
-                    ? file.getOriginalFilename()
-                          .substring(file.getOriginalFilename().lastIndexOf(".") + 1)
-                    : "bin";
-
-            String objectName = prefix
-                    .append(java.util.UUID.randomUUID())
-                    .append(".")
-                    .append(extension)
-                    .toString();
+            // Legacy upload agora tambem usa object key opaca para evitar exposicao
+            // de dados sensiveis (nomes de empresa/funcionario) no caminho do storage.
+            String objectName = gerarObjectKeyOpacaLegado(file.getOriginalFilename());
 
             PutObjectArgs args = PutObjectArgs.builder()
                     .bucket(bucket)
@@ -73,6 +63,22 @@ public class MinioService {
         } catch (Exception e) {
             throw new RuntimeException("Falha ao fazer upload para MinIO: " + e.getMessage(), e);
         }
+    }
+
+    private String gerarObjectKeyOpacaLegado(String originalFilename) {
+        String extension = "bin";
+        if (originalFilename != null) {
+            int lastDot = originalFilename.lastIndexOf('.');
+            if (lastDot >= 0 && lastDot < originalFilename.length() - 1) {
+                String candidate = originalFilename.substring(lastDot + 1)
+                        .toLowerCase(Locale.ROOT)
+                        .replaceAll("[^a-z0-9]", "");
+                if (!candidate.isBlank() && candidate.length() <= 10) {
+                    extension = candidate;
+                }
+            }
+        }
+        return "legacy/" + java.util.UUID.randomUUID() + "." + extension;
     }
 
     // -------------------------------------------------------------------------
@@ -155,14 +161,14 @@ public class MinioService {
     }
 
     /**
-     * Tenta configurar SSE-S3 (criptografia padrao) no bucket.
-     * Requer MinIO com KMS configurado para SSE-KMS (producao).
-     * Para SSE-S3 sem KMS, falha silenciosamente e loga aviso.
-     * Em producao com KES/Vault, esta chamada habilitara envelope encryption.
+     * Configura e valida criptografia em repouso no bucket.
+     *
+     * Com minio.bucket-encryption-required=true, a aplicacao entra em fail-fast
+     * se nao conseguir garantir SSE no bucket.
      */
     public void configurarCriptografiaBucket() {
+        Exception ultimaFalha = null;
         try {
-            // API correta para MinIO SDK 8.6.0: construtor direto com SseConfigurationRule
             SseConfiguration config = new SseConfiguration(
                     new SseConfigurationRule(SseAlgorithm.AES256, null)
             );
@@ -172,11 +178,38 @@ public class MinioService {
                             .config(config)
                             .build()
             );
-            log.info("SSE-S3 configurado com sucesso no bucket '{}'", bucket);
+            log.info("SSE-S3 configurado no bucket '{}'", bucket);
         } catch (Exception e) {
-            log.warn("Nao foi possivel configurar SSE no bucket '{}' (requer KMS em producao): {}",
+            ultimaFalha = e;
+            log.warn("Falha ao configurar SSE no bucket '{}': {}",
                     bucket, e.getMessage());
         }
+
+        try {
+            client.getBucketEncryption(
+                    GetBucketEncryptionArgs.builder()
+                            .bucket(bucket)
+                            .build()
+            );
+            log.info("Criptografia em repouso validada no bucket '{}'", bucket);
+            return;
+        } catch (Exception e) {
+            if (ultimaFalha == null) {
+                ultimaFalha = e;
+            }
+            log.warn("Falha ao validar SSE no bucket '{}': {}", bucket, e.getMessage());
+        }
+
+        if (bucketEncryptionRequired) {
+            throw new IllegalStateException(
+                    "Criptografia em repouso obrigatoria no bucket MinIO e nao foi validada.",
+                    ultimaFalha
+            );
+        }
+
+        log.warn("Criptografia em repouso NAO validada no bucket '{}'. "
+                        + "Permitido apenas porque minio.bucket-encryption-required=false.",
+                bucket);
     }
 
 }

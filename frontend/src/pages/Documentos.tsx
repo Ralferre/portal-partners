@@ -139,23 +139,50 @@ export function Documentos() {
   const handleDownload = async (doc: Documento) => {
     setError("");
     try {
-      const response = await api.get<SolicitarDownloadResponse>(
-        `/api/documentos/${doc.id}/solicitar-download`
-      );
+      // Download via backend evita dependencias do endpoint assinado no navegador
+      // durante testes locais e garante fluxo para ADMIN/CONTRATANTE.
+      const response = await api.get(`/api/documentos/${doc.id}/download`, {
+        responseType: "blob",
+      });
 
+      const contentDisposition =
+        response.headers["content-disposition"] || response.headers["Content-Disposition"];
+      const fileNameMatch = /filename="?(.*?)"?$/i.exec(contentDisposition || "");
+      const fileName = fileNameMatch?.[1] || doc.nomeArquivo || `documento-${doc.id}`;
+
+      const blobUrl = window.URL.createObjectURL(response.data);
       const a = document.createElement("a");
-      a.href = response.data.downloadUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.download = response.data.nomeArquivo || doc.nomeArquivo || `documento-${doc.id}`;
+      a.href = blobUrl;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
+      window.URL.revokeObjectURL(blobUrl);
 
       // atualiza lista para refletir mudança de "novo" (download pela contratante)
       loadDocumentos(pageInfo.page);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Erro ao baixar documento");
+      // Fallback para URL assinada quando o stream via backend falhar no ambiente local.
+      try {
+        const signed = await api.get<SolicitarDownloadResponse>(
+          `/api/documentos/${doc.id}/solicitar-download`
+        );
+        const a = document.createElement("a");
+        a.href = signed.data.downloadUrl;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.download = signed.data.nomeArquivo || doc.nomeArquivo || `documento-${doc.id}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        loadDocumentos(pageInfo.page);
+      } catch (fallbackErr: any) {
+        setError(
+          fallbackErr.response?.data?.message ||
+            err.response?.data?.message ||
+            "Erro ao baixar documento"
+        );
+      }
     }
   };
 
