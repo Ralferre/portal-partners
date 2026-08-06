@@ -37,7 +37,10 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/forgot-password",
-                                "/api/auth/reset-password"
+                                "/api/auth/reset-password",
+                                // Liberado para o healthcheck do provedor de deploy.
+                                // show-details=never: responde apenas UP/DOWN.
+                                "/actuator/health"
                         ).permitAll()
                         .requestMatchers(
                                 "/api/lgpd/consentimento",

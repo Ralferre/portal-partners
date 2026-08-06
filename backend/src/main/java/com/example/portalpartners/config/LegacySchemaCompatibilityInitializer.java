@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,7 @@ public class LegacySchemaCompatibilityInitializer {
     private final FieldEncryptionService fieldEncryptionService;
 
     @EventListener(ApplicationReadyEvent.class)
+    @Order(1)
     public void ensureCompatibility() {
         garantirColunasDocumento();
         garantirCpfHash();
