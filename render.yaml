@@ -1,0 +1,145 @@
+# Blueprint do Render — infraestrutura do Portal Partners como codigo.
+#
+# Cria tres recursos: banco Postgres, API (container Docker) e frontend
+# (site estatico com CDN e HTTPS automatico).
+#
+# Como usar: Render > New > Blueprint > aponte para este repositorio.
+# As variaveis marcadas com "sync: false" sao segredos e serao pedidas na tela
+# no momento do deploy — nenhuma delas fica versionada aqui.
+#
+# Passo a passo completo, incluindo storage e primeiro acesso: DEPLOY.md
+
+databases:
+  - name: portal-partners-db
+    databaseName: portalpartners
+    user: portalpartners
+    # 'free' funciona para testar, mas o Render expira bancos gratuitos apos
+    # ~30 dias e eles somem com os dados. Para uso real, mantenha um plano pago.
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+
+services:
+  # ---------------- API (Spring Boot em container) ----------------
+  - type: web
+    name: portal-partners-api
+    runtime: docker
+    plan: starter          # 'free' hiberna apos inatividade (cold start lento)
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # --- Banco: o Render entrega uma connection string postgres://, que NAO
+      # e URL JDBC. Por isso passamos as partes e o application.properties monta.
+      - key: DB_HOST
+        fromDatabase: { name: portal-partners-db, property: host }
+      - key: DB_PORT
+        fromDatabase: { name: portal-partners-db, property: port }
+      - key: DB_NAME
+        fromDatabase: { name: portal-partners-db, property: database }
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase: { name: portal-partners-db, property: user }
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase: { name: portal-partners-db, property: password }
+
+      - key: SPRING_JPA_DDL_AUTO
+        value: update
+      - key: SPRING_JPA_SHOW_SQL
+        value: "false"
+      - key: JAVA_OPTS
+        value: -XX:MaxRAMPercentage=75
+
+      # --- Seguranca (valores informados na tela do Render) ---
+      - key: JWT_SECRET
+        generateValue: true      # >= 256 bits, exigencia do HS256
+      - key: JWT_EXPIRATION
+        value: "86400000"        # 24h em milissegundos
+      # openssl rand -base64 32  — perder esta chave torna os dados cifrados
+      # (CPF, nome de arquivo) irrecuperaveis. Guarde em local seguro.
+      - key: APP_FIELD_ENCRYPTION_KEY
+        sync: false
+
+      # --- URLs: preencher DEPOIS do primeiro deploy, quando o Render
+      # ja tiver atribuido o dominio do frontend (ver DEPLOY.md, passo 5) ---
+      - key: APP_FRONTEND_URL
+        sync: false
+      - key: APP_CORS_ALLOWED_ORIGINS
+        sync: false
+
+      # --- Storage S3-compativel (Cloudflare R2, AWS S3, Backblaze B2) ---
+      - key: MINIO_URL
+        sync: false
+      - key: MINIO_PUBLIC_URL
+        sync: false
+      - key: MINIO_REGION
+        value: auto              # 'auto' no R2; na AWS, a region do bucket
+      - key: MINIO_ROOT_USER
+        sync: false              # access key id
+      - key: MINIO_ROOT_PASSWORD
+        sync: false              # secret access key
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_BUCKET_NAME
+        value: portal-partners
+      - key: MINIO_BUCKET_ENCRYPTION_REQUIRED
+        value: "false"           # R2/S3 ja cifram em repouso por padrao
+
+      # --- E-mail (recuperacao de senha e primeiro acesso) ---
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+      # --- Seed dos perfis iniciais ---
+      # Deixe false. Ligue APENAS no primeiro deploy para criar admin,
+      # contratante e contratada; depois volte para false (ver DEPLOY.md).
+      - key: APP_SEED_ENABLED
+        value: "false"
+      - key: APP_SEED_ADMIN_PASSWORD
+        sync: false
+      - key: APP_SEED_CONTRATANTE_PASSWORD
+        sync: false
+      - key: APP_SEED_CONTRATADA_PASSWORD
+        sync: false
+
+      # --- LGPD ---
+      - key: APP_LGPD_VERSAO_TERMO_ATUAL
+        value: v1.0
+      - key: APP_LGPD_TERMO_HASH_ATUAL
+        sync: false
+
+  # ---------------- Frontend (site estatico) ----------------
+  - type: web
+    name: portal-partners-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeploy: true
+    envVars:
+      # O Vite grava este valor dentro do bundle no BUILD. Trocar a URL da API
+      # exige um novo build, nao basta editar a variavel.
+      - key: VITE_API_BASE_URL
+        sync: false
+    routes:
+      # SPA: o React Router resolve as rotas no cliente. Sem este rewrite,
+      # abrir /dashboard direto ou dar F5 numa rota interna devolve 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
