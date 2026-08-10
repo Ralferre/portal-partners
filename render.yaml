@@ -1,37 +1,62 @@
-# Blueprint do Render — infraestrutura do Portal Partners como codigo.
+# Blueprint do Render — ambiente de DEMONSTRACAO do Portal Partners.
 #
-# Cria tres recursos: banco Postgres, API (container Docker) e frontend
-# (site estatico com CDN e HTTPS automatico).
+# Objetivo: colocar a aplicacao numa URL publica usando apenas a conta do
+# Render, sem contratar storage externo e sem custo.
 #
-# Como usar: Render > New > Blueprint > aponte para este repositorio.
-# As variaveis marcadas com "sync: false" sao segredos e serao pedidas na tela
-# no momento do deploy — nenhuma delas fica versionada aqui.
+# LIMITES ACEITOS NESTA CONFIGURACAO (leia antes de usar com gente de verdade):
+#   - Servicos gratuitos hibernam apos inatividade: o primeiro acesso demora
+#     cerca de 1 minuto ate a aplicacao acordar.
+#   - O plano gratuito de Postgres do Render expira em poucas semanas e o banco
+#     e removido COM OS DADOS.
+#   - O MinIO roda sem disco persistente: os documentos enviados somem a cada
+#     redeploy ou reinicio do servico.
 #
-# Passo a passo completo, incluindo storage e primeiro acesso: DEPLOY.md
+# Ou seja: serve para demonstrar e validar o fluxo, NAO para operar com
+# documento real de funcionario. Como promover para producao esta no final
+# deste arquivo.
+#
+# Passo a passo: DEPLOY.md
 
 databases:
   - name: portal-partners-db
     databaseName: portalpartners
     user: portalpartners
-    # 'free' funciona para testar, mas o Render expira bancos gratuitos apos
-    # ~30 dias e eles somem com os dados. Para uso real, mantenha um plano pago.
-    plan: basic-256mb
+    plan: free
     postgresMajorVersion: "16"
 
 services:
-  # ---------------- API (Spring Boot em container) ----------------
+  # ---------------- Storage (MinIO) ----------------
+  # Mesmo MinIO do docker-compose local, agora hospedado ao lado da API.
+  # Nenhuma linha de MinioService muda: e o mesmo protocolo S3.
+  - type: web
+    name: portal-partners-minio
+    runtime: image
+    plan: free
+    region: oregon
+    image:
+      url: docker.io/minio/minio:latest
+    # O Render roteia trafego externo para uma unica porta. Expomos a API S3
+    # (9000); o console web (9001) fica acessivel apenas dentro do servico.
+    dockerCommand: server /data --address :9000 --console-address :9001
+    envVars:
+      - key: PORT
+        value: "9000"
+      - key: MINIO_ROOT_USER
+        sync: false
+      - key: MINIO_ROOT_PASSWORD
+        sync: false
+
+  # ---------------- API (Spring Boot) ----------------
   - type: web
     name: portal-partners-api
     runtime: docker
-    plan: starter          # 'free' hiberna apos inatividade (cold start lento)
+    plan: free
     region: oregon
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /actuator/health
     autoDeploy: true
     envVars:
-      # --- Banco: o Render entrega uma connection string postgres://, que NAO
-      # e URL JDBC. Por isso passamos as partes e o application.properties monta.
       - key: DB_HOST
         fromDatabase: { name: portal-partners-db, property: host }
       - key: DB_PORT
@@ -47,49 +72,58 @@ services:
         value: update
       - key: SPRING_JPA_SHOW_SQL
         value: "false"
+      # Instancia gratuita tem pouca memoria; sem isso a JVM pode ser morta.
       - key: JAVA_OPTS
-        value: -XX:MaxRAMPercentage=75
+        value: -XX:MaxRAMPercentage=70 -Xss512k
 
-      # --- Seguranca (valores informados na tela do Render) ---
       - key: JWT_SECRET
-        generateValue: true      # >= 256 bits, exigencia do HS256
+        generateValue: true
       - key: JWT_EXPIRATION
-        value: "86400000"        # 24h em milissegundos
-      # openssl rand -base64 32  — perder esta chave torna os dados cifrados
-      # (CPF, nome de arquivo) irrecuperaveis. Guarde em local seguro.
+        value: "86400000"
+      # openssl rand -base64 32 — sem ela a aplicacao nao sobe (por design).
       - key: APP_FIELD_ENCRYPTION_KEY
         sync: false
 
-      # --- URLs: preencher DEPOIS do primeiro deploy, quando o Render
-      # ja tiver atribuido o dominio do frontend (ver DEPLOY.md, passo 5) ---
+      # Preencher DEPOIS do primeiro deploy, com as URLs reais (DEPLOY.md).
       - key: APP_FRONTEND_URL
         sync: false
       - key: APP_CORS_ALLOWED_ORIGINS
         sync: false
+      # URL publica desta propria API: o link de download de uso unico
+      # aponta para ela e precisa ser alcancavel pelo navegador.
+      - key: APP_API_URL
+        sync: false
 
-      # --- Storage S3-compativel (Cloudflare R2, AWS S3, Backblaze B2) ---
+      # --- Storage: apontar para o servico MinIO acima ---
+      # As duas URLs recebem o mesmo valor (a URL publica do servico MinIO).
+      # A presigned URL e assinada para um host especifico: se a URL usada na
+      # assinatura for diferente da que o browser acessa, o storage rejeita.
       - key: MINIO_URL
         sync: false
       - key: MINIO_PUBLIC_URL
         sync: false
-      - key: MINIO_REGION
-        value: auto              # 'auto' no R2; na AWS, a region do bucket
       - key: MINIO_ROOT_USER
-        sync: false              # access key id
+        sync: false
       - key: MINIO_ROOT_PASSWORD
-        sync: false              # secret access key
+        sync: false
       - key: MINIO_ACCESS_KEY
         sync: false
       - key: MINIO_SECRET_KEY
         sync: false
       - key: MINIO_BUCKET_NAME
         value: portal-partners
+      - key: MINIO_REGION
+        value: ""
+      # false = modo permissivo. A API sobe mesmo se o storage estiver
+      # hibernado; upload e download falham ate ele acordar.
+      # Em producao: true.
       - key: MINIO_BUCKET_ENCRYPTION_REQUIRED
-        value: "false"           # R2/S3 ja cifram em repouso por padrao
+        value: "false"
 
-      # --- E-mail (recuperacao de senha e primeiro acesso) ---
+      # --- E-mail: opcional na demo ---
+      # Sem SMTP tudo funciona, exceto "esqueci minha senha".
       - key: MAIL_HOST
-        sync: false
+        value: sandbox.smtp.mailtrap.io
       - key: MAIL_PORT
         value: "587"
       - key: MAIL_USERNAME
@@ -97,11 +131,10 @@ services:
       - key: MAIL_PASSWORD
         sync: false
       - key: MAIL_FROM
-        sync: false
+        value: no-reply@portal-partners.local
 
-      # --- Seed dos perfis iniciais ---
-      # Deixe false. Ligue APENAS no primeiro deploy para criar admin,
-      # contratante e contratada; depois volte para false (ver DEPLOY.md).
+      # --- Seed dos tres perfis ---
+      # Ligar apenas no primeiro deploy e voltar para false (DEPLOY.md).
       - key: APP_SEED_ENABLED
         value: "false"
       - key: APP_SEED_ADMIN_PASSWORD
@@ -111,13 +144,14 @@ services:
       - key: APP_SEED_CONTRATADA_PASSWORD
         sync: false
 
-      # --- LGPD ---
       - key: APP_LGPD_VERSAO_TERMO_ATUAL
         value: v1.0
       - key: APP_LGPD_TERMO_HASH_ATUAL
         sync: false
 
-  # ---------------- Frontend (site estatico) ----------------
+  # ---------------- Frontend ----------------
+  # Sites estaticos no Render nao hibernam e nao tem custo: a tela de login
+  # abre na hora. A espera do cold start acontece na primeira chamada a API.
   - type: web
     name: portal-partners-web
     runtime: static
@@ -126,13 +160,10 @@ services:
     staticPublishPath: ./dist
     autoDeploy: true
     envVars:
-      # O Vite grava este valor dentro do bundle no BUILD. Trocar a URL da API
-      # exige um novo build, nao basta editar a variavel.
+      # Gravado dentro do bundle no BUILD. Mudar exige novo build.
       - key: VITE_API_BASE_URL
         sync: false
     routes:
-      # SPA: o React Router resolve as rotas no cliente. Sem este rewrite,
-      # abrir /dashboard direto ou dar F5 numa rota interna devolve 404.
       - type: rewrite
         source: /*
         destination: /index.html
@@ -143,3 +174,20 @@ services:
       - path: /*
         name: X-Frame-Options
         value: DENY
+
+# ============================================================================
+# COMO PROMOVER PARA PRODUCAO
+#
+# 1. Banco: plan free -> basic-256mb (ou superior). Backup e retencao passam
+#    a existir. Migre os dados antes do plano gratuito expirar.
+# 2. API: plan free -> starter. Some a hibernacao e o cold start.
+# 3. Storage: a escolha depende do volume.
+#    a) Manter MinIO: plan starter + bloco `disk` (o disco exige plano pago),
+#       montado em /data. Os arquivos passam a sobreviver a redeploy.
+#    b) Trocar por Cloudflare R2 ou AWS S3: mais robusto e barato em escala.
+#       So mudam MINIO_URL, MINIO_PUBLIC_URL, as chaves e MINIO_REGION
+#       (auto no R2). Nenhuma alteracao de codigo.
+# 4. MINIO_BUCKET_ENCRYPTION_REQUIRED -> true, para a API se recusar a subir
+#    sem storage com criptografia validada.
+# 5. SMTP real, para recuperacao de senha funcionar.
+# ============================================================================
