@@ -64,6 +64,55 @@ public class DocumentoController {
         return ResponseEntity.ok(documentoService.solicitarDownload(id));
     }
 
+    /**
+     * Entrega o arquivo a partir de um token de uso unico emitido por
+     * /solicitar-download. Nao exige cabecalho Authorization: o token e a
+     * credencial, o que permite abrir o link direto no navegador. Ele vale
+     * uma vez so e por 60 segundos.
+     */
+    @GetMapping("/download/{token}")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadPorToken(
+            @PathVariable String token,
+            jakarta.servlet.http.HttpServletRequest request) {
+
+        DocumentoService.DownloadPayload payload =
+                documentoService.downloadPorToken(token, extrairIp(request));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"" + sanitizarNomeArquivo(payload.filename()) + "\"");
+        // O link ja foi consumido; impedir que qualquer cache guarde o arquivo.
+        headers.set(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate");
+
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(payload.contentType());
+        } catch (Exception e) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(mediaType)
+                .body(payload.resource());
+    }
+
+    /** Evita quebra de cabecalho HTTP via aspas ou nova linha no nome. */
+    private String sanitizarNomeArquivo(String nome) {
+        if (nome == null || nome.isBlank()) {
+            return "documento";
+        }
+        return nome.replaceAll("[\"\\r\\n]", "_");
+    }
+
+    private String extrairIp(jakarta.servlet.http.HttpServletRequest request) {
+        String encaminhado = request.getHeader("X-Forwarded-For");
+        if (encaminhado != null && !encaminhado.isBlank()) {
+            return encaminhado.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
     // =========================================================================
     // ENDPOINTS LEGADOS (retrocompatibilidade)
     // =========================================================================

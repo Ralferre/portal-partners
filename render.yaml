@@ -89,6 +89,10 @@ services:
         sync: false
       - key: APP_CORS_ALLOWED_ORIGINS
         sync: false
+      # URL publica desta propria API: o link de download de uso unico
+      # aponta para ela e precisa ser alcancavel pelo navegador.
+      - key: APP_API_URL
+        sync: false
 
       # --- Storage: apontar para o servico MinIO acima ---
       # As duas URLs recebem o mesmo valor (a URL publica do servico MinIO).

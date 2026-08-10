@@ -11,7 +11,9 @@ import com.example.portalpartners.model.*;
 import com.example.portalpartners.repository.ContratadaRepository;
 import com.example.portalpartners.repository.DocumentoRepository;
 import com.example.portalpartners.repository.FuncionarioRepository;
+import com.example.portalpartners.model.DownloadToken;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -39,6 +41,11 @@ public class DocumentoService {
     private final UsuarioLogadoService usuarioLogadoService;
     private final MinioService minioService;
     private final LgpdService lgpdService;
+    private final DownloadTokenService downloadTokenService;
+
+    /** URL publica desta API: o link de download precisa ser absoluto. */
+    @Value("${app.api-url}")
+    private String apiUrl;
 
     // =========================================================================
     // ARQUITETURA ZERO-COPY — Presigned URLs
@@ -122,16 +129,18 @@ public class DocumentoService {
 
         validarPermissaoDownload(usuario, documento);
 
-        // Marca download pela contratante (para badge de "novos")
-        if (usuario.getRole() == Role.CONTRATANTE
-                && documento.getDataDownloadContratante() == null) {
-            documento.setDataDownloadContratante(LocalDateTime.now());
-            documentoRepository.save(documento);
-        }
-
         String key = resolverChaveDownloadDisponivel(documento);
 
-        String downloadUrl = minioService.gerarPresignedGetUrl(key);
+        // O badge de "novos" passa a ser marcado no download efetivo, e nao
+        // aqui: solicitar o link e desistir nao conta mais como baixado.
+        boolean marcaDownloadContratante = usuario.getRole() == Role.CONTRATANTE
+                && documento.getDataDownloadContratante() == null;
+
+        DownloadToken token = downloadTokenService.emitir(
+                documento.getId(), usuario.getId(), key, marcaDownloadContratante);
+
+        String downloadUrl = apiUrl.replaceAll("/+$", "")
+                + "/api/documentos/download/" + token.getToken();
 
         // Nome exibido: usa nomeArquivoOriginal (decifrado pelo converter) se disponivel
         String nomeExibido = documento.getNomeArquivoOriginal() != null
@@ -139,7 +148,48 @@ public class DocumentoService {
                 : documento.getNomeArquivo();
 
         return new SolicitarDownloadResponse(downloadUrl, nomeExibido,
-                documento.getContentType(), 900);
+                documento.getContentType(), downloadTokenService.validadeSegundos());
+    }
+
+    /**
+     * Serve o arquivo a partir de um token de uso unico.
+     *
+     * A autorizacao ja foi verificada quando o token foi emitido (usuario
+     * autenticado e `validarPermissaoDownload`). Aqui o token e a credencial:
+     * consumi-lo com sucesso e o que autoriza a entrega dos bytes.
+     */
+    @Transactional
+    public DownloadPayload downloadPorToken(String token, String ip) {
+        DownloadToken autorizacao = downloadTokenService.consumir(token, ip);
+
+        Documento documento = documentoRepository.findById(autorizacao.getDocumentoId())
+                .orElseThrow(() -> new ResourceNotFoundException("Documento nao encontrado"));
+
+        if (autorizacao.isMarcaDownloadContratante()
+                && documento.getDataDownloadContratante() == null) {
+            documento.setDataDownloadContratante(LocalDateTime.now());
+            documentoRepository.save(documento);
+        }
+
+        String key = autorizacao.getObjectKey();
+
+        InputStream stream = minioService.getObjectStream(key);
+        Resource resource = new InputStreamResource(stream);
+
+        String contentType = documento.getContentType();
+        if (contentType == null || contentType.isBlank()) {
+            try {
+                contentType = minioService.statObject(key).contentType();
+            } catch (Exception e) {
+                contentType = "application/octet-stream";
+            }
+        }
+
+        String nomeExibido = documento.getNomeArquivoOriginal() != null
+                ? documento.getNomeArquivoOriginal()
+                : documento.getNomeArquivo();
+
+        return new DownloadPayload(resource, nomeExibido, contentType);
     }
 
     // =========================================================================

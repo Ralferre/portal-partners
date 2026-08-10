@@ -107,7 +107,12 @@ MINIO_URL                = https://portal-partners-minio.onrender.com
 MINIO_PUBLIC_URL         = https://portal-partners-minio.onrender.com
 APP_FRONTEND_URL         = https://portal-partners-web.onrender.com
 APP_CORS_ALLOWED_ORIGINS = https://portal-partners-web.onrender.com
+APP_API_URL              = https://portal-partners-api.onrender.com
 ```
+
+> `APP_API_URL` e a URL da **propria API**. O link de download de uso unico e
+> absoluto e aponta para ela; se estiver errada, o botao de baixar documento
+> gera um endereco que nao existe.
 
 > As duas URLs do MinIO recebem o **mesmo** valor. A presigned URL e assinada
 > para um host especifico: se o host da assinatura for diferente do que o
