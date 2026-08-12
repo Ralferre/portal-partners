@@ -37,7 +37,8 @@ services:
       url: docker.io/minio/minio:latest
     # O Render roteia trafego externo para uma unica porta. Expomos a API S3
     # (9000); o console web (9001) fica acessivel apenas dentro do servico.
-    dockerCommand: server /data --address :9000 --console-address :9001
+    dockerCommand: minio server /tmp/minio-data --address :9000 --console-address :9001
+
     envVars:
       - key: PORT
         value: "9000"
