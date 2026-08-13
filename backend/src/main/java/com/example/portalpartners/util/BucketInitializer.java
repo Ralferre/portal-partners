@@ -28,7 +28,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class BucketInitializer {
 
-    private static final int MAX_TENTATIVAS = 6;
+    // Um servico gratuito hibernado leva "50 segundos ou mais" para acordar,
+    // e as primeiras requisicoes durante esse despertar voltam 502. Com 12
+    // tentativas e teto de 30s entre elas, a janela total passa de 4 minutos —
+    // folga suficiente para o storage subir antes de desistirmos.
+    private static final int MAX_TENTATIVAS = 12;
     private static final long ESPERA_INICIAL_MS = 3000L;
 
     private final MinioClient minioClient;
