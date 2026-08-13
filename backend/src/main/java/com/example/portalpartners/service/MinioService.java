@@ -29,11 +29,79 @@ public class MinioService {
     @Value("${minio.bucket-encryption-required:true}")
     private boolean bucketEncryptionRequired;
 
+    /** Uma vez confirmado, nao ha nova ida a rede pelo resto da vida da instancia. */
+    private volatile boolean bucketConfirmado = false;
+
+    private static final int TENTATIVAS_BUCKET = 3;
+
     public MinioService(
             @Qualifier("minioClient") MinioClient client,
             @Qualifier("minioPresignClient") MinioClient presignClient) {
         this.client = client;
         this.presignClient = presignClient;
+    }
+
+    /**
+     * Garante a existencia do bucket no momento do uso, e nao apenas na subida
+     * da aplicacao.
+     *
+     * O BucketInitializer roda uma unica vez, no startup. Se o storage estiver
+     * indisponivel naquele instante (hibernado, por exemplo), a aplicacao sobe
+     * sem bucket e todo upload posterior falha, mesmo depois que o storage
+     * volta. Esta verificacao remove essa dependencia de ordem de inicializacao.
+     *
+     * O resultado positivo fica em cache: o custo e uma unica chamada por
+     * instancia, na primeira vez que alguem envia um documento.
+     */
+    public void garantirBucketExiste() {
+        if (bucketConfirmado) {
+            return;
+        }
+
+        synchronized (this) {
+            if (bucketConfirmado) {
+                return;
+            }
+
+            Exception ultimaFalha = null;
+
+            for (int tentativa = 1; tentativa <= TENTATIVAS_BUCKET; tentativa++) {
+                try {
+                    boolean existe = client.bucketExists(
+                            BucketExistsArgs.builder().bucket(bucket).build());
+
+                    if (!existe) {
+                        client.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+                        log.info("Bucket criado sob demanda: {}", bucket);
+                    }
+
+                    bucketConfirmado = true;
+                    return;
+                } catch (Exception e) {
+                    ultimaFalha = e;
+                    log.warn("Storage nao respondeu ao verificar o bucket (tentativa {}/{}): {}",
+                            tentativa, TENTATIVAS_BUCKET, e.getMessage());
+
+                    if (tentativa < TENTATIVAS_BUCKET) {
+                        dormir(4000L * tentativa);
+                    }
+                }
+            }
+
+            throw new RuntimeException(
+                    "O storage de documentos esta indisponivel no momento. "
+                            + "Aguarde cerca de um minuto e tente novamente. Detalhe tecnico: "
+                            + (ultimaFalha == null ? "desconhecido" : ultimaFalha.getMessage()),
+                    ultimaFalha);
+        }
+    }
+
+    private void dormir(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -95,6 +163,11 @@ public class MinioService {
      * TTL de 10 minutos: suficiente para uploads de ate 10MB em conexoes lentas.
      */
     public String gerarPresignedPutUrl(String objectKey) {
+        // Sem esta garantia, um bucket ausente so aparece la na frente: a URL e
+        // assinada normalmente (assinatura e local) e o navegador recebe um 404
+        // opaco do storage. Verificar aqui falha cedo e com mensagem util.
+        garantirBucketExiste();
+
         try {
             return presignClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
