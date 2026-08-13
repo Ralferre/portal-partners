@@ -1,0 +1,12 @@
+{
+  "name": "portal-partners-demo-data",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gerador da base de documentos ficticios para demonstracao do Portal Partners",
+  "scripts": {
+    "gerar": "node gerar-documentos.js"
+  },
+  "dependencies": {
+    "pdfkit": "^0.15.0"
+  }
+}
