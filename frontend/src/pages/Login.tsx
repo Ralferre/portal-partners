@@ -66,11 +66,11 @@ export function Login(): JSX.Element {
               gutterBottom
               align="center"
             >
-              Sistema de Gestão Documentação
+              Portal Partners
             </Typography>
 
-            <Typography variant="body1" color="text.secondary" mt={4} mb={3}>
-              Gerencie Documentos e Processos de Forma Segura
+            <Typography variant="body1" color="text.secondary" mt={2} mb={3} align="center">
+              Gestão documental segura para relações B2B
             </Typography>
 
             <Typography
@@ -91,7 +91,7 @@ export function Login(): JSX.Element {
                 const res = isValidEmail(val);
                 setEmailError(res ? null : "Digite um e-mail válido.");
               }}
-              label="Enter your e-mail"
+              label="seu@email.com"
               startIcon={<EmailOutlinedIcon />}
               error={!!emailError}
               helperText={emailError ?? undefined}
@@ -103,13 +103,13 @@ export function Login(): JSX.Element {
               mb={0}
               mt={2}
             >
-              Password
+              Senha
             </Typography>
             <InputField
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
-              label="E-mail"
+              label="Sua senha"
               required
               onChange={(e) => {
                 const val = (e.target as HTMLInputElement).value;

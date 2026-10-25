@@ -55,7 +55,7 @@ services:
     region: oregon
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    healthCheckPath: /actuator/health
+    healthCheckPath: /actuator/health/liveness
     autoDeploy: true
     envVars:
       - key: DB_HOST
@@ -70,7 +70,9 @@ services:
         fromDatabase: { name: portal-partners-db, property: password }
 
       - key: SPRING_JPA_DDL_AUTO
-        value: update
+        value: validate
+      - key: SPRING_FLYWAY_ENABLED
+        value: "true"
       - key: SPRING_JPA_SHOW_SQL
         value: "false"
       # Instancia gratuita tem pouca memoria; sem isso a JVM pode ser morta.
@@ -121,10 +123,12 @@ services:
       - key: MINIO_BUCKET_ENCRYPTION_REQUIRED
         value: "false"
 
-      # --- E-mail: opcional na demo ---
-      # Sem SMTP tudo funciona, exceto "esqueci minha senha".
+      # --- E-mail (Gmail SMTP) ---
+      # Recuperacao de senha ("esqueci minha senha"). Usar app password do
+      # Gmail (conta com 2FA). NUNCA commitar a senha — preencher no painel.
+      # Sem MAIL_USERNAME/MAIL_PASSWORD tudo funciona, exceto o envio de e-mail.
       - key: MAIL_HOST
-        value: sandbox.smtp.mailtrap.io
+        value: smtp.gmail.com
       - key: MAIL_PORT
         value: "587"
       - key: MAIL_USERNAME
@@ -132,7 +136,7 @@ services:
       - key: MAIL_PASSWORD
         sync: false
       - key: MAIL_FROM
-        value: no-reply@portal-partners.local
+        sync: false
 
       # --- Seed dos tres perfis ---
       # Ligar apenas no primeiro deploy e voltar para false (DEPLOY.md).
@@ -144,6 +148,20 @@ services:
         sync: false
       - key: APP_SEED_CONTRATADA_PASSWORD
         sync: false
+
+      # --- Documentos de demonstracao (PDFs ficticios 4dev) ---
+      # true popula a base com 10 documentos de exemplo para apresentacao.
+      # NUNCA cria/altera usuarios. Deixar false em producao real.
+      - key: APP_DEMO_DOCS_ENABLED
+        value: "false"
+
+      # --- Observabilidade (Sentry) ---
+      # Plano Developer (free). Deixe SENTRY_DSN vazio para desligar.
+      # NUNCA commitar o DSN — preencher no painel do Render.
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
 
       - key: APP_LGPD_VERSAO_TERMO_ATUAL
         value: v1.0
@@ -164,6 +182,11 @@ services:
       # Gravado dentro do bundle no BUILD. Mudar exige novo build.
       - key: VITE_API_BASE_URL
         sync: false
+      # Observabilidade do frontend (Sentry free). Vazio desliga.
+      - key: VITE_SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_ENVIRONMENT
+        value: production
     routes:
       - type: rewrite
         source: /*
@@ -180,15 +203,24 @@ services:
 # COMO PROMOVER PARA PRODUCAO
 #
 # 1. Banco: plan free -> basic-256mb (ou superior). Backup e retencao passam
-#    a existir. Migre os dados antes do plano gratuito expirar.
-# 2. API: plan free -> starter. Some a hibernacao e o cold start.
-# 3. Storage: a escolha depende do volume.
-#    a) Manter MinIO: plan starter + bloco `disk` (o disco exige plano pago),
-#       montado em /data. Os arquivos passam a sobreviver a redeploy.
-#    b) Trocar por Cloudflare R2 ou AWS S3: mais robusto e barato em escala.
-#       So mudam MINIO_URL, MINIO_PUBLIC_URL, as chaves e MINIO_REGION
-#       (auto no R2). Nenhuma alteracao de codigo.
-# 4. MINIO_BUCKET_ENCRYPTION_REQUIRED -> true, para a API se recusar a subir
-#    sem storage com criptografia validada.
-# 5. SMTP real, para recuperacao de senha funcionar.
+#    a existir. Migre os dados antes do plano gratuito expirar. O schema ja e
+#    gerenciado por Flyway (SPRING_JPA_DDL_AUTO=validate) — migrations em
+#    db/migration sao aplicadas automaticamente no deploy.
+# 2. API: plan free -> starter. Some a hibernacao e o cold start. Enquanto no
+#    free, o frontend exibe a tela "Iniciando..." (BootGate) durante o wake-up.
+# 3. Storage — RECOMENDADO: Cloudflare R2 (nao hiberna, free tier real,
+#    S3-compativel). Resolve o "despertar manual" do MinIO. Basta definir:
+#       MINIO_URL / MINIO_PUBLIC_URL = https://<accountid>.r2.cloudflarestorage.com
+#       MINIO_ACCESS_KEY / MINIO_SECRET_KEY = token R2 (Object Read & Write)
+#       MINIO_REGION = auto
+#       MINIO_BUCKET_NAME = portal-partners
+#       MINIO_BUCKET_ENCRYPTION_REQUIRED = false   (R2 cifra em repouso por
+#         padrao e NAO suporta setBucketEncryption via API S3; o modo permissivo
+#         evita falha de boot — nenhuma mudanca de codigo no MinioService)
+#    CORS do bucket R2 e OBRIGATORIO (presigned PUT/GET vem do browser):
+#       AllowedOrigins: a origem do frontend (ex: https://<app>.pages.dev)
+#       AllowedMethods: GET, PUT   | AllowedHeaders: *   | ExposeHeaders: ETag
+# 4. SMTP real (Gmail): ver DEPLOY.md para gerar o app password.
+# 5. Observabilidade: criar projeto no Sentry (plano Developer/free, SEM cartao)
+#    e preencher SENTRY_DSN (API) e VITE_SENTRY_DSN (frontend).
 # ============================================================================

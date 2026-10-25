@@ -10,15 +10,15 @@ import PeopleIcon from "@mui/icons-material/People";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { darken, useTheme } from "@mui/material/styles";
+import { BrandLogo } from "./BrandLogo";
+import { RSOFT_COLORS } from "../../theme/theme";
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const theme = useTheme();
 
-  const sidebarBg = darken(theme.palette.primary.main, 0.18);
+  const sidebarBg = RSOFT_COLORS.navy;
 
   const handleLogout = () => {
     logout();
@@ -39,13 +39,11 @@ export function Sidebar() {
       }}
     >
       <Box sx={{ p: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
-          Portal Partners
-        </Typography>
-        <Typography variant="caption" sx={{ opacity: 0.8 }}>
+        <BrandLogo size={34} textColor="#fff" />
+        <Typography variant="caption" sx={{ display: "block", opacity: 0.85, mt: 1.5 }}>
           {user?.email}
         </Typography>
-        <Typography variant="caption" sx={{ display: "block", opacity: 0.8 }}>
+        <Typography variant="caption" sx={{ display: "block", opacity: 0.85 }}>
           Perfil: {user?.role}
         </Typography>
       </Box>

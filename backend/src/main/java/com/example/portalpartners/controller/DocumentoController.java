@@ -1,10 +1,8 @@
 package com.example.portalpartners.controller;
 
 import com.example.portalpartners.dto.*;
-import com.example.portalpartners.model.Documento;
 import com.example.portalpartners.model.StatusDocumento;
 import com.example.portalpartners.model.TipoDocumento;
-import com.example.portalpartners.repository.DocumentoRepository;
 import com.example.portalpartners.service.DocumentoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +22,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DocumentoController {
 
-    private final DocumentoRepository documentoRepository;
     private final DocumentoService documentoService;
 
     // =========================================================================
@@ -191,20 +188,5 @@ public class DocumentoController {
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
         documentoService.deletarDocumento(id);
         return ResponseEntity.noContent().build();
-    }
-
-    // mapper auxiliar para endpoints legados
-    private DocumentoResponse toResponse(Documento d) {
-        DocumentoResponse dto = new DocumentoResponse();
-        dto.setId(d.getId());
-        dto.setTipoDocumento(d.getTipoDocumento());
-        dto.setNomeArquivo(d.getNomeArquivoOriginal() != null
-                ? d.getNomeArquivoOriginal() : d.getNomeArquivo());
-        dto.setStatusDocumento(d.getStatusDocumento());
-        dto.setDataPostagem(d.getDataPostagem());
-        dto.setContratadaNome(d.getContratada() != null ? d.getContratada().getNome() : null);
-        dto.setFuncionarioNome(
-                d.getFuncionario() != null ? d.getFuncionario().getNomeCompleto() : null);
-        return dto;
     }
 }

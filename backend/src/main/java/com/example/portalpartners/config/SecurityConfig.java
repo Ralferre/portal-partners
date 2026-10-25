@@ -41,6 +41,7 @@ public class SecurityConfig {
                                 // Liberado para o healthcheck do provedor de deploy.
                                 // show-details=never: responde apenas UP/DOWN.
                                 "/actuator/health",
+                                "/actuator/health/**",
                                 // Download por token de uso unico. Nao e um endpoint
                                 // aberto: o token de 256 bits E a credencial, vale uma
                                 // unica vez e expira em 60s. Fica fora do filtro JWT

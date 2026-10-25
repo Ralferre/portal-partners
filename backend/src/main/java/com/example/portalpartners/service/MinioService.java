@@ -104,6 +104,45 @@ public class MinioService {
         }
     }
 
+    /**
+     * Verificacao leve de disponibilidade do storage para o health indicator.
+     * Faz um unico bucketExists (sem retry, sem efeitos colaterais) e devolve
+     * true/false. Nao lanca excecao: o indicador decide o status.
+     */
+    public boolean storageDisponivel() {
+        try {
+            client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
+            return true;
+        } catch (Exception e) {
+            log.debug("Health check do storage falhou: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public String getBucketName() {
+        return bucket;
+    }
+
+    /**
+     * Faz upload de um conteudo em memoria sob um object key opaco informado.
+     * Usado pelo seeder de documentos de demonstracao. Garante o bucket antes.
+     */
+    public void uploadBytes(String objectKey, byte[] conteudo, String contentType) {
+        garantirBucketExiste();
+        try {
+            client.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(objectKey)
+                            .stream(new java.io.ByteArrayInputStream(conteudo), conteudo.length, -1)
+                            .contentType(contentType != null ? contentType : "application/octet-stream")
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Falha ao enviar objeto de demonstracao ao storage: " + e.getMessage(), e);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Upload legado (mantido para retrocompatibilidade - bytes passam pelo backend)
     // Para novos uploads, usar gerarPresignedPutUrl (arquitetura Zero-Copy).

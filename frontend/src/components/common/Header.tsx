@@ -12,20 +12,15 @@ import {
   Typography,
   Toolbar,
 } from "@mui/material";
-import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import { SearchInput } from "./SearchInput";
+import { BrandLogo } from "./BrandLogo";
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-
-const STORAGE_THEME_KEY = "@PortalPartners:theme";
-
-type ThemeKey = "agro" | "forest" | "sunset";
 
 export function Header() {
   const navigate = useNavigate();
@@ -33,13 +28,6 @@ export function Header() {
   const [novosCount, setNovosCount] = useState<number>(0);
 
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
-  const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
-
-  const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
-    const raw = localStorage.getItem(STORAGE_THEME_KEY);
-    if (raw === "forest" || raw === "sunset" || raw === "agro") return raw;
-    return "agro";
-  });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -104,30 +92,12 @@ export function Header() {
     logout();
   };
 
-  const handleSelectTheme = (next: ThemeKey) => {
-    setThemeKey(next);
-    localStorage.setItem(STORAGE_THEME_KEY, next);
-    setThemeMenuAnchor(null);
-    window.dispatchEvent(new Event("portalpartners:theme"));
-  };
-
   return (
     // <Box height={60} sx={{ flexGrow: 1 }}>
     <AppBar position="static" elevation={0}>
       <Toolbar>
-        <IconButton>
-          <HomeOutlinedIcon sx={{ color: "white" }} />
-          <Typography
-            variant="h6"
-            paddingLeft={1}
-            fontSize={16}
-            color="white"
-            noWrap
-            component="div"
-            sx={{ display: { xs: "none", sm: "block" } }}
-          >
-            Portal Partners
-          </Typography>
+        <IconButton onClick={() => navigate("/dashboard")} sx={{ p: 0.5 }} aria-label="Ir para o inicio">
+          <BrandLogo size={34} textColor="#fff" />
         </IconButton>
         <Box sx={{ flexGrow: 1 }}>
           <Box
@@ -265,24 +235,6 @@ export function Header() {
               <MenuItem onClick={handleLogout}>Sair</MenuItem>
             </Menu>
 
-            <IconButton onClick={(e) => setThemeMenuAnchor(e.currentTarget)}>
-              <SettingsOutlinedIcon sx={{ color: "white", marginLeft: 2 }} />
-            </IconButton>
-            <Menu
-              anchorEl={themeMenuAnchor}
-              open={!!themeMenuAnchor}
-              onClose={() => setThemeMenuAnchor(null)}
-            >
-              <MenuItem selected={themeKey === "agro"} onClick={() => handleSelectTheme("agro")}>
-                Tema Agro
-              </MenuItem>
-              <MenuItem selected={themeKey === "forest"} onClick={() => handleSelectTheme("forest")}>
-                Tema Floresta
-              </MenuItem>
-              <MenuItem selected={themeKey === "sunset"} onClick={() => handleSelectTheme("sunset")}>
-                Tema Pôr do sol
-              </MenuItem>
-            </Menu>
             <IconButton>
               <NotificationsNoneOutlinedIcon
                 sx={{ color: "white", marginLeft: 2 }}

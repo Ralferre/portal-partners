@@ -19,9 +19,9 @@ jobs:
           java-version: '21'
           distribution: temurin
           cache: maven
-      - name: Compilar e empacotar
+      - name: Compilar, testar e empacotar
         working-directory: backend
-        run: mvn -B -ntp package
+        run: mvn -B -ntp verify
 
   frontend:
     name: Frontend (React + Vite)

@@ -2,11 +2,24 @@ package com.example.portalpartners.model;
 
 import com.example.portalpartners.crypto.EncryptedStringConverter;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.time.LocalDateTime;
 
+/**
+ * Documento enviado por uma CONTRATADA, vinculado a ela e/ou a um funcionario.
+ *
+ * Usa {@code @Getter}/{@code @Setter} (e nao {@code @Data}) de proposito:
+ * entidades JPA com relacionamentos LAZY nao devem ter equals/hashCode/toString
+ * gerados por {@code @Data}, pois disparam carregamento preguicoso e podem
+ * recursar entre entidades relacionadas.
+ */
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -64,46 +77,6 @@ public class Documento {
     @Enumerated(EnumType.STRING)
     private StatusDocumento statusDocumento;
 
-    @PrePersist
-    private void prePersist() {
-        if (this.dataPostagem == null) {
-            this.dataPostagem = LocalDateTime.now();
-        }
-    }
-
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public TipoDocumento getTipoDocumento() { return tipoDocumento; }
-    public void setTipoDocumento(TipoDocumento tipoDocumento) { this.tipoDocumento = tipoDocumento; }
-
-    public String getNomeArquivo() { return nomeArquivo; }
-    public void setNomeArquivo(String nomeArquivo) { this.nomeArquivo = nomeArquivo; }
-
-    public String getNomeArquivoOriginal() { return nomeArquivoOriginal; }
-    public void setNomeArquivoOriginal(String nomeArquivoOriginal) { this.nomeArquivoOriginal = nomeArquivoOriginal; }
-
-    public String getArquivoPath() { return arquivoPath; }
-    public void setArquivoPath(String arquivoPath) { this.arquivoPath = arquivoPath; }
-
-    public String getObjectKey() { return objectKey; }
-    public void setObjectKey(String objectKey) { this.objectKey = objectKey; }
-
-    public String getContentType() { return contentType; }
-    public void setContentType(String contentType) { this.contentType = contentType; }
-
-    public Long getTamanhoBytes() { return tamanhoBytes; }
-    public void setTamanhoBytes(Long tamanhoBytes) { this.tamanhoBytes = tamanhoBytes; }
-
-    public StatusDocumento getStatusDocumento() { return statusDocumento; }
-    public void setStatusDocumento(StatusDocumento statusDocumento) { this.statusDocumento = statusDocumento; }
-
-    public LocalDateTime getDataDownloadContratante() { return dataDownloadContratante; }
-    public void setDataDownloadContratante(LocalDateTime dataDownloadContratante) { this.dataDownloadContratante = dataDownloadContratante; }
-
-    public LocalDateTime getDataStatusAtualizado() { return dataStatusAtualizado; }
-    public void setDataStatusAtualizado(LocalDateTime dataStatusAtualizado) { this.dataStatusAtualizado = dataStatusAtualizado; }
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contratada_id")
     private Contratada contratada;
@@ -112,9 +85,10 @@ public class Documento {
     @JoinColumn(name = "funcionario_id")
     private Funcionario funcionario;
 
-    public Contratada getContratada() { return contratada; }
-    public void setContratada(Contratada contratada) { this.contratada = contratada; }
-
-    public Funcionario getFuncionario() { return funcionario; }
-    public void setFuncionario(Funcionario funcionario) { this.funcionario = funcionario; }
+    @PrePersist
+    private void prePersist() {
+        if (this.dataPostagem == null) {
+            this.dataPostagem = LocalDateTime.now();
+        }
+    }
 }

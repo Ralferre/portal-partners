@@ -16,6 +16,12 @@ FRONTEND_IMPLEMENTATION.md
 REFACTORING_REPORT.md
 REFACTORING_SUMMARY.md
 
+# Planos e documentos de planejamento (sensíveis — nunca versionar)
+IMPLEMENTATION_PLAN.md
+*_PLAN.md
+PLANNING*.md
+*_PLANNING.md
+
 frontend/node_modules/
 */node_modules/
 frontend/.npm/
